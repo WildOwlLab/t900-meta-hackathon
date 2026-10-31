@@ -9,9 +9,11 @@
     "node": ">=22"
   },
   "scripts": {
+    "dev": "tsx scripts/dev.ts",
     "dev:web": "vite",
     "dev:server": "tsx watch src/server/main.ts",
     "start:server": "tsx src/server/main.ts",
+    "stub:provider": "tsx tests/e2e/support/stub-provider.ts",
     "typecheck": "tsc --noEmit",
     "build": "tsc --noEmit && vite build",
     "test": "vitest run",
@@ -27,6 +29,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
     "@playwright/test": "1.63.0",
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",

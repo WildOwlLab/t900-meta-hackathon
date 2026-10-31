@@ -31,7 +31,7 @@ export default defineConfig({
   projects: [
     {
       name: 'fixture',
-      testMatch: /(flow|custom-input|export)\.spec\.ts/,
+      testMatch: /(flow|custom-input|export|polish)\.spec\.ts/,
       use: { baseURL: `http://localhost:${FIXTURE_WEB_PORT}` },
     },
     {

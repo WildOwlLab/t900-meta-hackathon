@@ -1,9 +1,35 @@
+/*
+ * Colours come from the browser's own light and dark schemes (color-scheme below), so contrast follows the
+ * user's setting. Borders and fills use two tokens. They have plain fallbacks first, then a color-mix()
+ * version where the browser supports it, so a browser without color-mix() still draws every border.
+ */
 :root {
   color-scheme: light dark;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   line-height: 1.5;
-  --line: color-mix(in srgb, currentColor 25%, transparent);
-  --soft: color-mix(in srgb, currentColor 7%, transparent);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  --line: rgba(128, 128, 128, 0.55);
+  --soft: rgba(128, 128, 128, 0.14);
+}
+
+@supports (color: color-mix(in srgb, red 50%, blue)) {
+  :root {
+    --line: color-mix(in srgb, currentColor 35%, transparent);
+    --soft: color-mix(in srgb, currentColor 8%, transparent);
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --line: currentColor;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
 body {
@@ -14,15 +40,24 @@ main {
   max-width: 52rem;
   margin: 0 auto;
   padding: 1.5rem 1rem 4rem;
+  /* A long ID, URL or hash wraps instead of pushing the page sideways. */
+  overflow-wrap: break-word;
+}
+
+h1 {
+  margin: 0 0 0.5rem;
+  line-height: 1.2;
 }
 
 h2 {
   margin: 2rem 0 0.5rem;
   font-size: 1.25rem;
+  line-height: 1.3;
 }
 
 h3 {
   margin: 0 0 0.25rem;
+  line-height: 1.3;
 }
 
 code {
@@ -30,16 +65,19 @@ code {
   overflow-wrap: anywhere;
 }
 
+:focus-visible {
+  outline: 3px solid Highlight;
+  outline-offset: 2px;
+}
+
 .note {
   margin: 0.25rem 0 0.75rem;
   font-size: 0.9rem;
-  opacity: 0.85;
 }
 
 .empty {
   margin: 0.25rem 0;
   font-style: italic;
-  opacity: 0.7;
 }
 
 .banner {
@@ -58,6 +96,7 @@ code {
   background: var(--soft);
 }
 
+/* Radio and checkbox rows */
 .choices {
   display: grid;
   gap: 0.5rem;
@@ -80,7 +119,18 @@ code {
 
 .choice:has(input:disabled) {
   cursor: not-allowed;
-  opacity: 0.6;
+}
+
+.choice:has(input:disabled) > span {
+  opacity: 0.7;
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0.15rem 0 0;
 }
 
 .card {
@@ -93,69 +143,6 @@ code {
 .card > h2:first-child,
 .card > h3:first-child {
   margin-top: 0;
-}
-
-.tabs {
-  display: flex;
-  gap: 0.25rem;
-  margin: 0.5rem 0 1rem;
-  border-bottom: 1px solid var(--line);
-}
-
-.tab {
-  border: 1px solid transparent;
-  border-bottom: none;
-  border-radius: 0.4rem 0.4rem 0 0;
-  font-weight: 500;
-}
-
-.tab.selected {
-  border-color: var(--line);
-  background: var(--soft);
-  font-weight: 700;
-}
-
-.field {
-  display: grid;
-  gap: 0.25rem;
-  margin: 0.6rem 0;
-}
-
-.field > label {
-  font-weight: 600;
-}
-
-.field input,
-.field textarea,
-select {
-  font: inherit;
-  padding: 0.4rem 0.5rem;
-  border: 1px solid var(--line);
-  border-radius: 0.3rem;
-  background: transparent;
-  color: inherit;
-}
-
-.field textarea {
-  resize: vertical;
-}
-
-fieldset.passage-editor {
-  margin: 0.75rem 0;
-  border: 1px solid var(--line);
-  border-radius: 0.5rem;
-}
-
-.inline {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem;
-  align-items: center;
-  margin: 0.5rem 0;
-}
-
-.valid {
-  font-weight: 600;
 }
 
 .card.error {
@@ -203,7 +190,13 @@ figure {
 
 figcaption {
   font-size: 0.85rem;
-  opacity: 0.85;
+}
+
+/* Buttons */
+button,
+select {
+  font: inherit;
+  color: inherit;
 }
 
 button {
@@ -211,9 +204,13 @@ button {
   border: 1px solid currentColor;
   border-radius: 0.4rem;
   background: transparent;
-  color: inherit;
-  font: inherit;
   cursor: pointer;
+}
+
+@media (hover: hover) {
+  button:not(:disabled):hover {
+    background: var(--soft);
+  }
 }
 
 button.primary {
@@ -223,9 +220,89 @@ button.primary {
 
 button:disabled {
   cursor: not-allowed;
-  opacity: 0.5;
+  opacity: 0.6;
 }
 
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin: 0.5rem 0 1rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.tab {
+  border-color: transparent;
+  border-bottom: none;
+  border-radius: 0.4rem 0.4rem 0 0;
+}
+
+.tab.selected {
+  border-color: var(--line);
+  background: var(--soft);
+  font-weight: 700;
+}
+
+/* Forms */
+.field {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0.6rem 0;
+}
+
+.field > label {
+  font-weight: 600;
+}
+
+.field input,
+.field textarea,
+select {
+  width: 100%;
+  max-width: 100%;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 0.3rem;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+}
+
+.field textarea {
+  resize: vertical;
+}
+
+fieldset.passage-editor {
+  min-width: 0;
+  margin: 0.75rem 0;
+  padding: 0.25rem 0.75rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+}
+
+.inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  margin: 0.5rem 0;
+}
+
+.inline select {
+  width: auto;
+  flex: 1 1 14rem;
+}
+
+.inline label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.5rem;
+}
+
+.valid {
+  font-weight: 600;
+}
+
+/* Lists of passages, requirements and repairs */
 .passages,
 .requirements,
 .repairs {
@@ -250,21 +327,24 @@ button:disabled {
 
 .rationale {
   font-size: 0.9rem;
-  opacity: 0.85;
 }
 
 .bucket {
   margin: 1rem 0;
 }
 
+/* Badges. The bottom margin keeps wrapped lines of badges apart on narrow screens. */
 .tag {
   display: inline-block;
-  padding: 0 0.45rem;
-  margin-right: 0.4rem;
+  margin: 0 0.4rem 0.2rem 0;
+  padding: 0.05rem 0.5rem;
   border: 1px solid currentColor;
   border-radius: 0.3rem;
   font-size: 0.78rem;
+  font-weight: 400;
+  line-height: 1.4;
   white-space: nowrap;
+  vertical-align: 0.05em;
 }
 
 .tag.in-pack {
@@ -273,4 +353,51 @@ button:disabled {
 
 .tag.added {
   font-weight: 700;
+}
+
+/* Phones and other narrow screens: stack layouts and make everything easy to tap. */
+@media (max-width: 640px) {
+  main {
+    padding: 1rem 0.75rem 3rem;
+  }
+
+  h1 {
+    font-size: 1.5rem;
+  }
+
+  button,
+  select,
+  .field input:not([type='checkbox']):not([type='radio']) {
+    min-height: 2.75rem;
+  }
+
+  .choice {
+    padding: 0.75rem;
+  }
+
+  .inline button {
+    flex: 1 1 auto;
+  }
+
+  .inline label {
+    min-height: 2.75rem;
+  }
+
+  .tabs .tab {
+    flex: 1 1 0;
+    padding-inline: 0.5rem;
+  }
+
+  dl {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  dt {
+    margin-top: 0.5rem;
+  }
+
+  pre {
+    max-height: 16rem;
+  }
 }

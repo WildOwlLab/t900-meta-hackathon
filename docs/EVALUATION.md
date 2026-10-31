@@ -146,9 +146,14 @@ It covers the deterministic analyzers only. Do not edit it by hand.
   recall is zero by design. Beating a keyword matcher is a low bar, not a finish line.
 - A real model has to do well on **both** recall and precision to be useful. Flagging conflicts that
   are not there is easy and costs the user's trust.
-- Because repairs only add passages, a revised pack can be smaller than sending every source but is
-  always larger than the initial pack, and the irrelevant passages already in the initial pack stay
-  there. A repair type that removes passages would be needed to cut that dead weight. It is not built.
+- **Add-only growth is by design.** Repairs only add passages, so a revised pack is always larger than
+  the initial pack. What the growth buys is coverage: the revised pack holds the evidence a correct
+  answer cites, and it is still smaller than sending every source passage (see "Revised pack vs all
+  sources"). The size of that saving depends entirely on how many irrelevant passages the sources
+  contain, and on this small dataset it is modest. The irrelevant passages already in the initial pack
+  stay there, so a repair that removes passages would be needed to cut that dead weight. It is not built.
+- "Coverage" means the required passages are present in the pack. It does not prove that the final
+  answer written from the pack is correct.
 
 ## Limitations
 

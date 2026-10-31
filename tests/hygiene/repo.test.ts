@@ -31,7 +31,8 @@ const read = (file: string) => readFileSync(join(root, file), 'utf8');
 
 describe('H2: standalone and separate from existing assets', () => {
   it('has no reference to the existing repositories or the production site', () => {
-    const forbidden = [/t900\.si/i, /Project-T900/i, /WildOwlLab\/T900/i];
+    // WildOwlLab/T900 is the existing product's repository. This repository is WildOwlLab/t900-meta-hackathon.
+    const forbidden = [/t900\.si/i, /Project-T900/i, /WildOwlLab\/T900(?!-meta-hackathon)/i];
     const hits = textFiles.flatMap((file) =>
       forbidden.filter((pattern) => pattern.test(read(file))).map((pattern) => `${file}: ${pattern}`),
     );
@@ -86,6 +87,85 @@ describe('H4: browser code stays on the browser side', () => {
   it('the shared folder does not import server code either', () => {
     const shared = files.filter((file) => file.startsWith('src/shared/') && file.endsWith('.ts'));
     expect(shared.filter((file) => /from\s+['"][^'"]*\/server\//.test(read(file)))).toEqual([]);
+  });
+});
+
+describe('H5: nothing private or temporary is committed', () => {
+  it('has no private links, session IDs, sandbox paths or personal addresses in any text file', () => {
+    const problems: string[] = [];
+    const emails = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/g;
+    for (const file of textFiles) {
+      const content = read(file);
+      if (/claude\.ai\//i.test(content)) problems.push(`${file}: a claude.ai link`);
+      if (/session_[A-Za-z0-9]{10,}/.test(content)) problems.push(`${file}: a session ID`);
+      if (/\/home\/user\b|\/tmp\/claude|\/root\//.test(content)) problems.push(`${file}: a local or sandbox path`);
+      // Reserved .test domains appear in tests as obvious fakes. Anything else that looks like an address is a problem.
+      for (const address of content.match(emails) ?? []) if (!/\.test$/.test(address)) problems.push(`${file}: ${address}`);
+    }
+    expect(problems).toEqual([]);
+  });
+
+  it('tracks no build output, test output, logs, backups or editor files', () => {
+    let tracked: string[];
+    try {
+      tracked = execFileSync('git', ['ls-files'], { cwd: root, encoding: 'utf8' }).split('\n').filter(Boolean);
+    } catch {
+      return; // not a git checkout, nothing to check
+    }
+    const temporary = /(^|\/)(node_modules|dist|coverage|test-results|playwright-report|\.smoke|\.eval|\.vite|\.turbo)\/|\.(log|tmp|bak|orig|swp|tsbuildinfo)$|(^|\/)\.DS_Store$/;
+    expect(tracked.filter((file) => temporary.test(file))).toEqual([]);
+    expect(tracked).toContain('package-lock.json');
+    expect(tracked).not.toContain('.env');
+  });
+});
+
+describe('the README stays true', () => {
+  const readme = read('README.md');
+  const scripts = Object.keys((JSON.parse(read('package.json')) as { scripts: Record<string, string> }).scripts);
+
+  it('puts the pre-existing versus new work section ahead of any setup instructions', () => {
+    const disclosure = readme.indexOf('## Pre-existing work vs new hackathon work');
+    expect(disclosure).toBeGreaterThan(-1);
+    for (const heading of ['## Try it in two minutes', '## Try the live path', '## Try it with a real key']) {
+      expect(readme.indexOf(heading), heading).toBeGreaterThan(disclosure);
+    }
+    expect(readme).toMatch(/\*\*Pre-existing\*\*/);
+    expect(readme).toMatch(/\*\*New in this repository\*\*/);
+  });
+
+  it('gives judges the three ways to run it, with the commands they asked for', () => {
+    for (const command of ['git clone', 'npm install', 'npm test', 'npm run dev', 'npm run dev -- --stub', 'META_API_KEY', 'cp .env.example .env']) {
+      expect(readme, command).toContain(command);
+    }
+  });
+
+  it('only mentions npm scripts that exist', () => {
+    const mentioned = [...readme.matchAll(/npm run ([a-z][a-z0-9:-]*)/g)].map((match) => match[1]!);
+    expect(mentioned.length).toBeGreaterThan(5);
+    expect(mentioned.filter((name) => !scripts.includes(name))).toEqual([]);
+  });
+
+  it('only links to files that exist', () => {
+    const links = [...readme.matchAll(/\]\(([^)#\s]+)\)/g)].map((match) => match[1]!).filter((href) => !/^[a-z]+:/i.test(href));
+    expect(links.length).toBeGreaterThan(3);
+    expect(links.filter((href) => !existsSync(join(root, href)))).toEqual([]);
+  });
+
+  it('only names environment variables that .env.example or the dev script defines', () => {
+    const defined = new Set([...read('.env.example').matchAll(/^([A-Z][A-Z0-9_]*)=/gm)].map((match) => match[1]!));
+    const named = new Set(readme.match(/\b(?:META|PORT|WEB_PORT)[A-Z_]*\b/g) ?? []);
+    const allowed = new Set([...defined, 'PORT', 'WEB_PORT']);
+    expect([...named].filter((name) => !allowed.has(name))).toEqual([]);
+  });
+
+  it('makes no performance claim: no percentages anywhere', () => {
+    expect(readme).not.toMatch(/\d+(\.\d+)?\s?%/);
+  });
+
+  it('says plainly that live mode and the model are unverified, and that Firefox and Safari were not tested', () => {
+    expect(readme).toMatch(/not yet[\s>]+been run against a real endpoint/); // the sentence may wrap inside a Markdown quote
+    expect(readme).toMatch(/No model has been evaluated/);
+    expect(readme).toMatch(/Firefox and Safari were not tested/);
   });
 });
 
