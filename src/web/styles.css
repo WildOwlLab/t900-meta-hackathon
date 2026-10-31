@@ -2,6 +2,8 @@
   color-scheme: light dark;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   line-height: 1.5;
+  --line: color-mix(in srgb, currentColor 25%, transparent);
+  --soft: color-mix(in srgb, currentColor 7%, transparent);
 }
 
 body {
@@ -9,9 +11,35 @@ body {
 }
 
 main {
-  max-width: 48rem;
+  max-width: 52rem;
   margin: 0 auto;
-  padding: 1.5rem 1rem 3rem;
+  padding: 1.5rem 1rem 4rem;
+}
+
+h2 {
+  margin: 2rem 0 0.5rem;
+  font-size: 1.25rem;
+}
+
+h3 {
+  margin: 0 0 0.25rem;
+}
+
+code {
+  font-size: 0.9em;
+  overflow-wrap: anywhere;
+}
+
+.note {
+  margin: 0.25rem 0 0.75rem;
+  font-size: 0.9rem;
+  opacity: 0.85;
+}
+
+.empty {
+  margin: 0.25rem 0;
+  font-style: italic;
+  opacity: 0.7;
 }
 
 .banner {
@@ -20,26 +48,150 @@ main {
   border-radius: 0.4rem;
 }
 
-.examples {
-  list-style: none;
-  padding: 0;
-  display: grid;
-  gap: 1rem;
+.banner.live {
+  border-width: 2px;
 }
 
-.examples li {
+.warn {
+  padding: 0.5rem 0.7rem;
+  border-left: 4px solid currentColor;
+  background: var(--soft);
+}
+
+.choices {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.choice {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+
+.choice:has(input:checked) {
+  border-color: currentColor;
+  background: var(--soft);
+}
+
+.choice:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.card {
   padding: 0.8rem 1rem;
-  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  margin: 1.5rem 0;
+  border: 1px solid var(--line);
   border-radius: 0.5rem;
 }
 
-.examples h3 {
-  margin: 0 0 0.4rem;
+.card > h2:first-child,
+.card > h3:first-child {
+  margin-top: 0;
 }
 
-.meta {
+.card.error {
+  border-color: currentColor;
+  border-width: 2px;
+}
+
+dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.2rem 1rem;
+  margin: 0.5rem 0;
+}
+
+dt {
+  font-weight: 600;
+}
+
+dd {
+  margin: 0;
+  min-width: 0;
+}
+
+pre {
+  max-height: 22rem;
+  overflow: auto;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  background: var(--soft);
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+blockquote {
+  margin: 0.25rem 0 0.5rem;
+  padding: 0.1rem 0.8rem;
+  border-left: 3px solid var(--line);
+}
+
+figure {
+  margin: 0.5rem 0;
+}
+
+figcaption {
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
+
+button {
+  padding: 0.5rem 1rem;
+  border: 1px solid currentColor;
+  border-radius: 0.4rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+button.primary {
+  font-weight: 600;
+  background: var(--soft);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.passages,
+.requirements,
+.repairs {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.passages li,
+.requirements li,
+.repairs li {
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+}
+
+.passages p,
+.requirements p {
+  margin: 0.15rem 0;
+}
+
+.rationale {
   font-size: 0.9rem;
   opacity: 0.85;
+}
+
+.bucket {
+  margin: 1rem 0;
 }
 
 .tag {
@@ -48,5 +200,14 @@ main {
   margin-right: 0.4rem;
   border: 1px solid currentColor;
   border-radius: 0.3rem;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.tag.in-pack {
+  background: var(--soft);
+}
+
+.tag.added {
+  font-weight: 700;
 }

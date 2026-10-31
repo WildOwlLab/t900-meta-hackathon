@@ -8,6 +8,7 @@
  * What this does NOT prove: that a cited passage genuinely answers the requirement.
  * That judgement belongs to the model and is measured separately (docs/EVALUATION.md).
  */
+import type { ZodError } from 'zod';
 import {
   AnalysisInputSchema,
   LIMITS,
@@ -46,6 +47,15 @@ function formatPath(path: readonly PropertyKey[]): string {
   return out || '(root)';
 }
 
+/** Convert a zod error into the same issue shape the semantic checks use. */
+export function issuesFromZod(error: ZodError): ValidationIssue[] {
+  return error.issues.map((issue) => ({
+    code: 'schema_violation' as const,
+    path: formatPath(issue.path),
+    message: issue.message,
+  }));
+}
+
 function fail<T>(issues: ValidationIssue[]): ValidationResult<T> {
   return {
     ok: false,
@@ -58,13 +68,7 @@ function fail<T>(issues: ValidationIssue[]): ValidationResult<T> {
 export function parseAnalysisInput(raw: unknown): ValidationResult<AnalysisInput> {
   const parsed = AnalysisInputSchema.safeParse(raw);
   if (parsed.success) return { ok: true, value: parsed.data };
-  return fail(
-    parsed.error.issues.map((issue) => ({
-      code: 'schema_violation' as const,
-      path: formatPath(issue.path),
-      message: issue.message,
-    })),
-  );
+  return fail(issuesFromZod(parsed.error));
 }
 
 function parseJson(raw: string): { ok: true; value: unknown } | { ok: false; issue: ValidationIssue } {
@@ -240,15 +244,7 @@ export function validateModelOutput(raw: unknown, input: AnalysisInput): Validat
   }
 
   const shape = ModelOutputSchema.safeParse(candidate);
-  if (!shape.success) {
-    return fail(
-      shape.error.issues.map((issue) => ({
-        code: 'schema_violation' as const,
-        path: formatPath(issue.path),
-        message: issue.message,
-      })),
-    );
-  }
+  if (!shape.success) return fail(issuesFromZod(shape.error));
 
   const issues = checkSemantics(shape.data, input);
   return issues.length === 0 ? { ok: true, value: shape.data } : fail(issues);

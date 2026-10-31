@@ -8,7 +8,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { runSmoke, type SmokeDeps } from '../../scripts/smoke-meta';
 import { getExample } from '../../src/examples';
-import { buildChatRequest } from '../../src/server/prompt';
+import { buildChatRequest, serializeRequest } from '../../src/server/prompt';
 
 const refund = getExample('refund-window')!;
 
@@ -119,6 +119,8 @@ describe('plumbing with a stubbed provider (not a live call)', () => {
     expect(init?.method).toBe('POST');
     expect((init?.headers as Record<string, string>).authorization).toBe(`Bearer ${KEY}`);
     expect(JSON.parse(init?.body as string)).toEqual(buildChatRequest(refund.input, 'stub-model'));
+    // The bytes sent are the bytes printed in the preview.
+    expect(init?.body).toBe(serializeRequest(buildChatRequest(refund.input, 'stub-model')));
 
     const out = t.output();
     expect(out).toContain('HTTP status: 200');
@@ -183,6 +185,35 @@ describe('plumbing with a stubbed provider (not a live call)', () => {
     expect(await t.run()).toBe(0);
     expect(t.output()).toContain('Example: expense-injection');
     expect(t.output()).toContain('ignore all earlier instructions');
+  });
+});
+
+describe('endpoint and response format settings', () => {
+  const baseEnv = { META_API_URL: 'https://api.provider.test/v1?token=URLSECRET', META_MODEL: 'stub-model', META_API_KEY: KEY };
+
+  it('appends /chat/completions to a base URL, keeps the query for the call, and hides it from the output', async () => {
+    const t = setup(['--yes'], baseEnv, () => chatResponse(JSON.stringify(refund.fixtureOutput)));
+    expect(await t.run()).toBe(0);
+    expect(String(t.fetchSpy.mock.calls[0]![0])).toBe('https://api.provider.test/v1/chat/completions?token=URLSECRET');
+    expect(t.output()).toContain('Endpoint: https://api.provider.test/v1/chat/completions');
+    expect(t.output()).not.toContain('URLSECRET');
+  });
+
+  it('sends json_object requests when META_RESPONSE_FORMAT asks for them', async () => {
+    const t = setup(['--yes'], { ...baseEnv, META_RESPONSE_FORMAT: 'json_object' }, () =>
+      chatResponse(JSON.stringify(refund.fixtureOutput)),
+    );
+    expect(await t.run()).toBe(0);
+    const sent = JSON.parse(t.fetchSpy.mock.calls[0]![1]?.body as string) as { response_format: unknown };
+    expect(sent.response_format).toEqual({ type: 'json_object' });
+    expect(t.output()).toContain('Response format: json_object');
+  });
+
+  it('rejects an unknown META_RESPONSE_FORMAT before sending anything', async () => {
+    const t = setup(['--yes'], { ...baseEnv, META_RESPONSE_FORMAT: 'yaml' });
+    expect(await t.run()).toBe(2);
+    expect(t.fetchSpy).not.toHaveBeenCalled();
+    expect(t.output()).toContain('json_schema, json_object');
   });
 });
 

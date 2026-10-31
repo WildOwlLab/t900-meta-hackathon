@@ -54,6 +54,29 @@ describe('H2: standalone and separate from existing assets', () => {
   });
 });
 
+describe('H4: browser code stays on the browser side', () => {
+  const webFiles = files.filter((file) => file.startsWith('src/web/') && /\.(ts|tsx)$/.test(file));
+
+  it('finds the web source files', () => {
+    expect(webFiles.length).toBeGreaterThan(5);
+  });
+
+  it('never imports server code, so no server module or secret can reach the bundle', () => {
+    const hits = webFiles.filter((file) => /from\s+['"][^'"]*\/server\//.test(read(file)));
+    expect(hits).toEqual([]);
+  });
+
+  it('never reads environment variables or mentions provider settings', () => {
+    const hits = webFiles.filter((file) => /process\.env|import\.meta\.env|META_API|META_MODEL/.test(read(file)));
+    expect(hits).toEqual([]);
+  });
+
+  it('the shared folder does not import server code either', () => {
+    const shared = files.filter((file) => file.startsWith('src/shared/') && file.endsWith('.ts'));
+    expect(shared.filter((file) => /from\s+['"][^'"]*\/server\//.test(read(file)))).toEqual([]);
+  });
+});
+
 describe('H3: no secrets', () => {
   it('ignores .env files in git', () => {
     expect(() => execFileSync('git', ['check-ignore', '-q', '.env'], { cwd: root })).not.toThrow();

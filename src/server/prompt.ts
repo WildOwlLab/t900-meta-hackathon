@@ -13,7 +13,7 @@
  * Each of those gets added only after the official docs confirm it.
  */
 import { z } from 'zod';
-import { LIMITS, ModelOutputSchema, type AnalysisInput } from '../shared/types';
+import { LIMITS, ModelOutputSchema, type AnalysisInput, type ResponseFormatMode } from '../shared/types';
 
 export const INPUT_START = 'INPUT_JSON:';
 export const INPUT_END = 'END_INPUT_JSON';
@@ -156,18 +156,47 @@ export const OUTPUT_SCHEMA_NAME = 'evidence_check';
 // Request body
 // ---------------------------------------------------------------------------
 
+export type ResponseFormat =
+  | { type: 'json_schema'; json_schema: { name: string; schema: JsonSchema } }
+  | { type: 'json_object' };
+
 export interface ChatCompletionRequest {
   model: string;
   messages: { role: 'system' | 'user'; content: string }[];
-  response_format: {
-    type: 'json_schema';
-    json_schema: { name: string; schema: JsonSchema };
-  };
+  response_format: ResponseFormat;
 }
 
-export function buildChatRequest(input: AnalysisInput, model: string): ChatCompletionRequest {
+export interface BuildOptions {
+  /** Defaults to json_schema. */
+  responseFormat?: ResponseFormatMode;
+}
+
+/**
+ * json_schema: the schema travels in `response_format`.
+ * json_object: the provider is only asked for a JSON object, so the same schema is
+ * written into the system prompt instead. The validator is the real enforcement either way.
+ */
+export function buildChatRequest(
+  input: AnalysisInput,
+  model: string,
+  options: BuildOptions = {},
+): ChatCompletionRequest {
   if (model.trim() === '') throw new Error('A model ID is required. Take it from the provider documentation.');
+  const mode = options.responseFormat ?? 'json_schema';
   const { system, user } = buildPrompt(input);
+
+  if (mode === 'json_object') {
+    const withSchema = `${system}\n\nThe JSON object must match this JSON Schema:\n${JSON.stringify(OUTPUT_JSON_SCHEMA, null, 2)}`;
+    return {
+      model,
+      messages: [
+        { role: 'system', content: withSchema },
+        { role: 'user', content: user },
+      ],
+      response_format: { type: 'json_object' },
+    };
+  }
+
   return {
     model,
     messages: [
@@ -179,4 +208,12 @@ export function buildChatRequest(input: AnalysisInput, model: string): ChatCompl
       json_schema: { name: OUTPUT_SCHEMA_NAME, schema: OUTPUT_JSON_SCHEMA },
     },
   };
+}
+
+/**
+ * The one serialisation used for the preview, the hash and the HTTP body. Using a single
+ * string for all three is what makes "what you approved is what was sent" checkable byte for byte.
+ */
+export function serializeRequest(request: ChatCompletionRequest): string {
+  return JSON.stringify(request, null, 2);
 }

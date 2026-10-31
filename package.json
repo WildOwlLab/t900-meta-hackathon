@@ -11,6 +11,7 @@
   "scripts": {
     "dev:web": "vite",
     "dev:server": "tsx watch src/server/main.ts",
+    "start:server": "tsx src/server/main.ts",
     "typecheck": "tsc --noEmit",
     "build": "tsc --noEmit && vite build",
     "test": "vitest run",

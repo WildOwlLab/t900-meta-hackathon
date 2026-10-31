@@ -7,14 +7,20 @@ Built for the Meta Global AI Developer Hackathon.
 
 ## Status
 
-Under development. Milestone 1 is in place: shared schema, validator, prompt builder,
-three synthetic examples, and a gated smoke-test script. The API routes, the review UI,
-and the live model integration are not built yet. No live model call has been made, so
-there are no results to report.
+Under development. Milestone 2 is in place: schema, validator, prompt builder, three
+synthetic examples, a local API (preview, analyze, apply), and a browser UI with an
+outbound-text preview, an explicit approval step, four-bucket findings, and repairs you
+approve one by one. Fixture mode runs with no setup.
 
-The workflow below is planned, not yet implemented.
+Live mode is built but has only been tested against stubbed responses. No live model call
+has been made, so there are no results to report.
 
-## Planned workflow
+Not built yet: exporting the revised pack and report, pasting your own sources, and any
+deployment.
+
+## Workflow
+
+Steps 1 to 5 work today on the three built-in examples. Step 6 is not built.
 
 1. Provide a task, source passages, and an initial context pack.
 2. Preview and approve the text sent to the model provider.
@@ -39,19 +45,38 @@ Requires Node 22 or newer.
 
 ```bash
 npm install
-npm test             # unit and hygiene tests, no network
+npm run start:server   # API on http://127.0.0.1:8787, loopback only
+npm run dev:web        # UI at http://localhost:5173 (second terminal)
+npm test               # unit, API and hygiene tests, no network
 npm run typecheck
-npm run dev:web      # placeholder UI at http://localhost:5173
-npm run test:e2e     # Playwright; on a fresh machine run `npx playwright install chromium` first
+npm run test:e2e       # Playwright, fixture mode only; on a fresh machine run `npx playwright install chromium` first
 ```
 
-Synthetic examples are built in. Fixture mode and live model mode will be clearly
-distinguished: fixture output is hand-written and never comes from a model.
+### Modes
 
-Live mode needs `META_API_KEY`, `META_API_URL` and `META_MODEL` (names only in
-`.env.example`). Provider details are unverified, see [docs/PROVIDER.md](docs/PROVIDER.md).
-Nothing is sent to a provider unless you run `npm run smoke:meta -- --yes`; without
-`--yes` it only prints the request it would send.
+- **Fixture** is the default and needs no setup. Its output is hand-written and never comes
+  from a model, and every result says so. Nothing is sent anywhere.
+- **Live** turns on only when `META_API_KEY`, `META_API_URL` and `META_MODEL` are all set on
+  the server (names only in `.env.example`). The UI then offers it as a choice. It is never
+  selected for you, and a key is never sent to the browser.
+
+The server has no login and listens on `127.0.0.1` only. Do not expose it publicly while a
+key is configured.
+
+### Approval
+
+Every analysis starts with a preview of the exact outbound text and its SHA-256. The server
+runs only if the approval hash matches that text, so the request cannot change after you
+approve it, and an approval given in fixture mode cannot authorise a live send. Repairs are
+never applied until you tick them and apply them. A repair only adds an original source
+passage to the pack by ID and writes no text.
+
+### Provider
+
+Provider details are unverified, see [docs/PROVIDER.md](docs/PROVIDER.md). `META_API_URL` is
+the provider's OpenAI-compatible base URL, and `/chat/completions` is added to it. Nothing
+reaches a provider unless you approve it in the UI in live mode, or run
+`npm run smoke:meta -- --yes`; without `--yes` the script only prints the request it would send.
 
 ## Privacy
 

@@ -27,7 +27,17 @@ export const LIMITS = {
 
 /** Where a result came from. Fixture output is hand-written, never produced by a model. */
 export type Mode = 'fixture' | 'live';
+export const MODES = ['fixture', 'live'] as const satisfies readonly Mode[];
 export const FIXTURE_NOTICE = 'Hand-written fixture. Not a model result.';
+
+/**
+ * How the expected output shape is requested from an OpenAI-compatible provider.
+ *  - json_schema: the schema travels in `response_format` (default).
+ *  - json_object: the provider is only asked for JSON, and the schema is written into the prompt.
+ * Which one a given host accepts is unverified, so it is a server setting (META_RESPONSE_FORMAT).
+ */
+export const RESPONSE_FORMATS = ['json_schema', 'json_object'] as const;
+export type ResponseFormatMode = (typeof RESPONSE_FORMATS)[number];
 
 // ---------------------------------------------------------------------------
 // Inputs

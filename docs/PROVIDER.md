@@ -24,6 +24,28 @@ done and this file links to the official pages.
 - OpenAI-compatible chat completions interface.
 - `json_schema` / structured outputs.
 
+## Provider hosts (as supplied, second message, 2026-10-31)
+
+Both are OpenAI-compatible chat completions hosts for an open-weight model. These values
+were given to us and have not been checked: we have not contacted either host.
+
+| Host | `META_API_URL` | `META_MODEL` |
+| --- | --- | --- |
+| Fireworks (primary) | `https://api.fireworks.ai/inference/v1` | `accounts/fireworks/models/muse-spark-open` |
+| Baseten (fallback) | `https://bridge.baseten.co/v1` | `meta-models/muse-spark-open-1028` |
+
+Things to know before relying on them:
+
+- **Not Meta's own API.** These are third-party hosts of Muse Spark Open. The eligibility
+  list we were given includes Meta's open-weight models, so this should be allowed. The
+  rubric line "Use of Meta AI Tooling" may still weigh Meta's own API more heavily. Worth
+  asking the organizers.
+- **No automatic failover.** "Fallback" means you change the environment variables and
+  restart. The approval names exactly one destination, so the app never quietly sends the
+  same text to a second provider.
+- **Each host has its own data terms.** Read Fireworks' or Baseten's terms, not only Meta's,
+  before sending anything real.
+
 ## Rules we build to (as supplied)
 
 - Keep the four-bucket classification: `supported`, `missing_evidence`, `conflicting`,
@@ -37,10 +59,12 @@ table, when a row turns out to be wrong, then update the row.
 
 | Item | What the code does | Status |
 | --- | --- | --- |
-| Endpoint | Takes the full URL from `META_API_URL`. Nothing is hard-coded. | Needs the official URL |
-| Model ID | Takes it from `META_MODEL`. Nothing is hard-coded. | Needs the official ID |
+| Endpoint | Takes `META_API_URL` as a base URL and adds `/chat/completions` unless it is already there. Nothing is hard-coded. | The `/chat/completions` suffix is the OpenAI-compatible convention, unverified for these hosts |
+| Model ID | Takes it from `META_MODEL`. Nothing is hard-coded. | Supplied, unverified |
 | Auth | `Authorization: Bearer <META_API_KEY>`, the usual convention for OpenAI-compatible APIs | Unverified |
-| Request body | `model`, `messages` (one system, one user), `response_format: { type: "json_schema", json_schema: { name, schema } }` | Field names unverified |
+| Request body | `model`, `messages` (one system, one user), and `response_format` | Field names unverified |
+| Response format | `json_schema` (default): `response_format: { type: "json_schema", json_schema: { name, schema } }`. `json_object`: `response_format: { type: "json_object" }`, with the same schema written into the system prompt. Chosen with `META_RESPONSE_FORMAT`. | Which one a host accepts is unverified. The first live smoke run should try both. |
+| `strict` | Not sent. The owner's note says "strict json_schema". The validator already rejects any output that breaks the schema, whether or not the provider enforces it. | Try `strict: true` in a smoke run only if the host documents it |
 | Not sent | `temperature`, max tokens, `top_p`, `seed`, `strict`, `stream` | Add each only after the docs confirm it, and only with a reason |
 | Response | `choices[0].message.content` is a string holding the JSON. Top-level `model`, `id` and `usage` are printed if present. | Unverified |
 | Schema keywords | Only `type`, `properties`, `required`, `items`, `enum`, `additionalProperties`. Constraint keywords such as `minLength` and `pattern` are stripped, and the validator enforces them. | Provider support unverified |
@@ -52,7 +76,8 @@ table, when a row turns out to be wrong, then update the row.
 - [ ] Read the official Meta Model API docs and link the exact pages here.
 - [ ] Confirm the chat completions URL, auth scheme and request field names.
 - [ ] Confirm the model ID for Muse Spark that this account can call, and that it supports
-      `json_schema`.
+      `json_schema` or `json_object` (set `META_RESPONSE_FORMAT` to match).
+- [ ] Confirm the chosen host's own data terms, not only Meta's.
 - [ ] Confirm which `response_format` schema keywords are supported.
 - [ ] Confirm rate limits, quota and any hackathon credits.
 - [ ] Read the data terms: retention, whether inputs are used for training, and
@@ -67,6 +92,6 @@ table, when a row turns out to be wrong, then update the row.
 
 ## Privacy
 
-Live mode sends the text shown in the outbound preview to the model provider. That text
-includes the task and every source passage, not only the pack. Fixture mode sends nothing
-anywhere.
+Live mode sends the text shown in the outbound preview to the host that `META_API_URL`
+names. That text includes the task and every source passage, not only the pack. Fixture
+mode sends nothing anywhere, and the preview says so.

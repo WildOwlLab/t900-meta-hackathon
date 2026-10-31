@@ -5,8 +5,10 @@ results yet, and the README makes no performance claim.
 
 ## What the automated tests show
 
-The tests cover the schema, validator, prompt builder, built-in examples, the smoke script's
-gates, and repository hygiene. They run without a network.
+The tests cover the schema, validator, prompt builder, built-in examples, the approval gate,
+the API routes, the repair engine, the browser flow in fixture mode, the smoke script's
+gates, and repository hygiene. They run without a network. The live client is tested only
+against stubbed provider responses written by the tests themselves.
 
 They show that our own code behaves as designed. They show **nothing about model quality**:
 no model is involved, and the fixtures are hand-written ideal outputs. A passing test run

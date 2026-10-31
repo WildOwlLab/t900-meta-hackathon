@@ -4,7 +4,15 @@
  * Requirement text is written by the model, so it cannot be compared to a gold label.
  * Passage IDs are stable, so evaluation compares those instead.
  */
+import type { Findings } from './api';
 import type { ModelOutput } from './types';
+
+/** Group requirements into the four buckets, preserving the model's order within each. */
+export function groupFindings(output: ModelOutput): Findings {
+  const findings: Findings = { supported: [], missing_evidence: [], conflicting: [], unanswerable: [] };
+  for (const requirement of output.requirements) findings[requirement.status].push(requirement);
+  return findings;
+}
 
 export interface Facts {
   /** Passage IDs cited by "supported" requirements, sorted and unique. */

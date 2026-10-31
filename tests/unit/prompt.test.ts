@@ -10,6 +10,7 @@ import {
   buildPayload,
   buildPrompt,
   extractPayload,
+  serializeRequest,
 } from '../../src/server/prompt';
 import { LIMITS, ModelOutputSchema, REQUIREMENT_STATUSES, type AnalysisInput } from '../../src/shared/types';
 
@@ -140,9 +141,10 @@ describe('chat request body', () => {
     expect(Object.keys(request).sort()).toEqual(['messages', 'model', 'response_format']);
     expect(request.model).toBe('model-id-from-docs');
     expect(request.messages.map((m) => m.role)).toEqual(['system', 'user']);
-    expect(request.response_format.type).toBe('json_schema');
-    expect(request.response_format.json_schema.name).toBe('evidence_check');
-    expect(request.response_format.json_schema.schema).toBe(OUTPUT_JSON_SCHEMA);
+    const format = request.response_format;
+    if (format.type !== 'json_schema') throw new Error('Expected the default response format to be json_schema.');
+    expect(format.json_schema.name).toBe('evidence_check');
+    expect(format.json_schema.schema).toBe(OUTPUT_JSON_SCHEMA);
   });
 
   it('sets no sampling parameters or provider-specific flags until the docs confirm them', () => {
@@ -162,5 +164,42 @@ describe('chat request body', () => {
       const body = buildChatRequest(example.input, 'm');
       expect(extractPayload(body.messages[1]!.content).passages).toHaveLength(example.input.sources.length);
     }
+  });
+});
+
+describe('json_object response format', () => {
+  const request = buildChatRequest(refund.input, 'm', { responseFormat: 'json_object' });
+  const schemaMarker = 'The JSON object must match this JSON Schema:';
+
+  it('asks the provider only for a JSON object, with no schema in response_format', () => {
+    expect(request.response_format).toEqual({ type: 'json_object' });
+  });
+
+  it('writes the same schema into the system prompt instead', () => {
+    const system = request.messages[0]!.content;
+    expect(system.startsWith(SYSTEM_PROMPT)).toBe(true);
+    expect(system).toContain(schemaMarker);
+    expect(system.endsWith(JSON.stringify(OUTPUT_JSON_SCHEMA, null, 2))).toBe(true);
+  });
+
+  it('leaves the user message and everything else unchanged', () => {
+    const schemaMode = buildChatRequest(refund.input, 'm');
+    expect(request.messages[1]).toEqual(schemaMode.messages[1]);
+    expect(request.model).toBe(schemaMode.model);
+    expect(Object.keys(request).sort()).toEqual(Object.keys(schemaMode).sort());
+  });
+
+  it('defaults to json_schema when no option is given', () => {
+    expect(buildChatRequest(refund.input, 'm').response_format.type).toBe('json_schema');
+    expect(buildChatRequest(refund.input, 'm', {}).response_format.type).toBe('json_schema');
+  });
+});
+
+describe('serializeRequest', () => {
+  it('is the single, stable serialisation used for preview, hash and HTTP body', () => {
+    const request = buildChatRequest(refund.input, 'm');
+    expect(serializeRequest(request)).toBe(JSON.stringify(request, null, 2));
+    expect(serializeRequest(request)).toBe(serializeRequest(structuredClone(request)));
+    expect(JSON.parse(serializeRequest(request))).toEqual(request);
   });
 });

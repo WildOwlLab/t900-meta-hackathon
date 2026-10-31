@@ -1,15 +1,16 @@
 /**
  * Smoke test for ONE real round trip to the model provider.
  *
- * Nothing is sent unless you pass --yes. Without it the script prints the exact request
- * body and exits. It has not been run against a live endpoint yet: the endpoint, auth
- * scheme and response shape below are assumptions to confirm against the official docs
- * (see docs/PROVIDER.md before the first live run).
+ * Nothing is sent unless you pass --yes. Without it the script prints the exact request body
+ * and exits. It has not been run against a live endpoint yet: the endpoint, auth scheme and
+ * response shape are assumptions to confirm (see docs/PROVIDER.md before the first live run).
  *
  * Usage:
  *   npm run smoke:meta -- [--example <slug>] [--yes] [--negative-control] [--repeat <1-5>]
  *
- * Environment (names only, see .env.example): META_API_KEY, META_API_URL, META_MODEL.
+ * Environment (names only, see .env.example):
+ *   META_API_KEY, META_API_URL, META_MODEL, and optionally META_RESPONSE_FORMAT.
+ *   META_API_URL is the provider's base URL; `/chat/completions` is appended unless already present.
  *
  * What it does with --yes:
  *   1. POSTs the request once per repeat, with `Authorization: Bearer <key>`.
@@ -24,8 +25,11 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { examples, getExample } from '../src/examples';
-import { buildChatRequest } from '../src/server/prompt';
+import { displayEndpoint, resolveChatUrl } from '../src/server/config';
+import { readChatBody, redact } from '../src/server/model/meta';
+import { buildChatRequest, serializeRequest } from '../src/server/prompt';
 import { validateModelOutput } from '../src/server/validator';
+import { RESPONSE_FORMATS, type ResponseFormatMode } from '../src/shared/types';
 
 export interface SmokeDeps {
   argv: string[];
@@ -71,52 +75,6 @@ function parseArgs(argv: string[]): Options | string {
   return options;
 }
 
-function parseEndpoint(raw: string): URL | string {
-  let url: URL;
-  try {
-    url = new URL(raw);
-  } catch {
-    return 'META_API_URL is not a valid URL.';
-  }
-  const local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
-  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && local)) {
-    return 'META_API_URL must use https (http is allowed only for localhost).';
-  }
-  if (url.username || url.password) return 'META_API_URL must not contain credentials.';
-  return url;
-}
-
-/** Origin and path only. Query strings can carry secrets, so they are never printed. */
-const displayEndpoint = (url: URL): string => `${url.origin}${url.pathname}`;
-
-interface ChatBody {
-  content?: string;
-  model?: unknown;
-  id?: unknown;
-  usage?: unknown;
-  shapeError?: string;
-}
-
-function readChatBody(text: string): ChatBody {
-  let body: unknown;
-  try {
-    body = JSON.parse(text);
-  } catch {
-    return { shapeError: 'Response body is not JSON.' };
-  }
-  if (body === null || typeof body !== 'object') return { shapeError: 'Response body is not a JSON object.' };
-  const record = body as Record<string, unknown>;
-  const choices = record.choices;
-  const first = Array.isArray(choices) ? (choices[0] as Record<string, unknown> | undefined) : undefined;
-  const message = first?.message as Record<string, unknown> | undefined;
-  const content = message?.content;
-  const common = { model: record.model, id: record.id, usage: record.usage };
-  if (typeof content !== 'string') {
-    return { ...common, shapeError: 'Expected choices[0].message.content to be a string. Check the official docs.' };
-  }
-  return { ...common, content };
-}
-
 export async function runSmoke(deps: SmokeDeps): Promise<number> {
   const { env, out } = deps;
 
@@ -132,20 +90,28 @@ export async function runSmoke(deps: SmokeDeps): Promise<number> {
     return 2;
   }
 
+  const formatRaw = env.META_RESPONSE_FORMAT?.trim();
+  if (formatRaw && !(RESPONSE_FORMATS as readonly string[]).includes(formatRaw)) {
+    out(`META_RESPONSE_FORMAT must be one of: ${RESPONSE_FORMATS.join(', ')}.`);
+    return 2;
+  }
+  const responseFormat = (formatRaw || 'json_schema') as ResponseFormatMode;
+
   const endpointRaw = env.META_API_URL?.trim();
-  const endpoint = endpointRaw ? parseEndpoint(endpointRaw) : undefined;
+  const endpoint = endpointRaw ? resolveChatUrl(endpointRaw) : undefined;
   const model = env.META_MODEL?.trim() || '<META_MODEL not set>';
-  const request = buildChatRequest(example.input, model);
+  const body = serializeRequest(buildChatRequest(example.input, model, { responseFormat }));
 
   out('LIVE SMOKE TEST. If sent, the request below goes to an external model provider.');
   out(`Example: ${example.slug} (synthetic data)`);
   out(
-    `Endpoint: ${endpoint instanceof URL ? displayEndpoint(endpoint) : (endpointRaw ? '<invalid META_API_URL>' : '<META_API_URL not set>')}`,
+    `Endpoint: ${endpoint?.ok ? displayEndpoint(endpoint.url) : endpointRaw ? '<invalid META_API_URL>' : '<META_API_URL not set>'}`,
   );
+  out(`Response format: ${responseFormat}`);
   out(`Key: ${options.negativeControl ? 'deliberately invalid (negative control)' : 'META_API_KEY'}`);
   out(`Repeats: ${options.repeat}`);
   out('--- outbound request body (exactly what would be sent) ---');
-  out(JSON.stringify(request, null, 2));
+  out(body);
   out('--- end of request body ---');
 
   if (!options.yes) {
@@ -160,18 +126,16 @@ export async function runSmoke(deps: SmokeDeps): Promise<number> {
     out(`Not sent. Missing environment variables: ${missing.join(', ')}`);
     return 2;
   }
-  if (typeof endpoint === 'string') {
-    out(`Not sent. ${endpoint}`);
+  if (!endpoint?.ok) {
+    out(`Not sent. ${endpoint?.error ?? 'META_API_URL is not set.'}`);
     return 2;
   }
-  if (!(endpoint instanceof URL)) return 2;
 
   const realKey = env.META_API_KEY?.trim() ?? '';
   const key = options.negativeControl ? NEGATIVE_CONTROL_KEY : realKey;
-  const redact = (text: string): string => (realKey ? text.split(realKey).join('[redacted]') : text);
 
   const stamp = new Date(deps.now()).toISOString().replace(/[:.]/g, '-');
-  deps.save(`${stamp}-request.json`, JSON.stringify(request, null, 2));
+  deps.save(`${stamp}-request.json`, body);
 
   let passed = 0;
   for (let i = 1; i <= options.repeat; i += 1) {
@@ -181,20 +145,20 @@ export async function runSmoke(deps: SmokeDeps): Promise<number> {
     let response: Response;
     let text: string;
     try {
-      response = await deps.fetchImpl(endpoint, {
+      response = await deps.fetchImpl(endpoint.url, {
         method: 'POST',
         headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
-        body: JSON.stringify(request),
+        body,
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
       text = await response.text();
     } catch (error) {
       const reason = error instanceof Error ? `${error.name}: ${error.message}` : 'unknown error';
-      out(`FAIL  request did not complete (${redact(reason)})`);
+      out(`FAIL  request did not complete (${redact(reason, realKey)})`);
       continue;
     }
     const latencyMs = deps.now() - started;
-    deps.save(`${stamp}-${i}-response.json`, redact(text));
+    deps.save(`${stamp}-${i}-response.json`, redact(text, realKey));
     out(`HTTP status: ${response.status}`);
     out(`Latency: ${latencyMs} ms`);
 
@@ -209,20 +173,20 @@ export async function runSmoke(deps: SmokeDeps): Promise<number> {
     }
 
     if (!response.ok) {
-      out(`FAIL  provider returned an error. Body (first 300 chars): ${redact(text).slice(0, 300)}`);
+      out(`FAIL  provider returned an error. Body (first 300 chars): ${redact(text, realKey).slice(0, 300)}`);
       continue;
     }
 
-    const body = readChatBody(text);
-    out(`Model (as returned by provider): ${typeof body.model === 'string' ? body.model : 'not returned'}`);
-    out(`Response id: ${typeof body.id === 'string' ? body.id : 'not returned'}`);
-    out(`Usage: ${body.usage === undefined ? 'not returned' : redact(JSON.stringify(body.usage))}`);
-    if (body.content === undefined) {
-      out(`FAIL  ${body.shapeError ?? 'Unexpected response shape.'} Raw response saved under .smoke/.`);
+    const parsed = readChatBody(text);
+    out(`Model (as returned by provider): ${typeof parsed.model === 'string' ? parsed.model : 'not returned'}`);
+    out(`Response id: ${typeof parsed.id === 'string' ? parsed.id : 'not returned'}`);
+    out(`Usage: ${parsed.usage === undefined ? 'not returned' : redact(JSON.stringify(parsed.usage), realKey)}`);
+    if (parsed.content === undefined) {
+      out(`FAIL  ${parsed.shapeError ?? 'Unexpected response shape.'} Raw response saved under .smoke/.`);
       continue;
     }
 
-    const result = validateModelOutput(body.content, example.input);
+    const result = validateModelOutput(parsed.content, example.input);
     if (result.ok) {
       out('PASS  output parsed and passed the validator.');
       passed += 1;
