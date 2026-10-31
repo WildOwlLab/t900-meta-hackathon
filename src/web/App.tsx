@@ -21,16 +21,27 @@ const idle = { status: 'idle' } as const;
 /** Wait for typing to pause before asking the server for a fresh preview. */
 const PREVIEW_DEBOUNCE_MS = 350;
 
+/**
+ * A request's state, tagged with the input and mode it belongs to. The screen only renders state whose
+ * stamp matches the CURRENT input and mode, in the same render in which the input changes. Without this,
+ * a preview, findings or revised pack for the previous input stays on screen until an effect clears it.
+ */
+interface Stamped<T> {
+  stamp: string | null;
+  load: Load<T>;
+}
+const unstamped = <T,>(): Stamped<T> => ({ stamp: null, load: idle });
+
 export default function App() {
   const [config, setConfig] = useState<ConfigResponse | null>(null);
   const [mode, setMode] = useState<Mode>('fixture');
   const [kind, setKind] = useState<InputKind>('examples');
   const [slug, setSlug] = useState(examples[0]!.slug);
   const [draft, setDraft] = useState<Draft>(emptyDraft);
-  const [preview, setPreview] = useState<Load<PreviewResponse>>(idle);
-  const [analysis, setAnalysis] = useState<Load<AnalyzeResponse>>(idle);
+  const [previewState, setPreview] = useState<Stamped<PreviewResponse>>(unstamped);
+  const [analysisState, setAnalysis] = useState<Stamped<AnalyzeResponse>>(unstamped);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
-  const [applied, setApplied] = useState<Load<ApplyResponse>>(idle);
+  const [appliedState, setApplied] = useState<Stamped<ApplyResponse>>(unstamped);
 
   // Only the newest request may update the screen. A late answer for a previous input or
   // mode is dropped, so results can never appear under the wrong preview.
@@ -43,6 +54,12 @@ export default function App() {
   const input: AnalysisInput | null = kind === 'examples' ? example.input : check.ok ? check.input : null;
   const key = input ? inputKey(input) : null;
   const builtIn = key ? examples.find((candidate) => inputKey(candidate.input) === key) : undefined;
+
+  const stamp = key === null ? null : `${mode}\n${key}`;
+  const current = <T,>(held: Stamped<T>): Load<T> => (stamp !== null && held.stamp === stamp ? held.load : idle);
+  const preview = current(previewState);
+  const analysis = current(analysisState);
+  const applied = current(appliedState);
 
   // Fixture mode only has hand-written answers for the built-in examples. Say so up front.
   const blockedReason =
@@ -61,53 +78,53 @@ export default function App() {
       .catch(() => setConfig(null));
   }, []);
 
-  // Any change of mode or input discards the old preview, results and selections, then asks for a fresh preview.
+  // Any change of mode or input starts a fresh preview. Old results are already hidden by their stamp.
   useEffect(() => {
     const id = ++latest.current;
-    setAnalysis(idle);
-    setApplied(idle);
+    setAnalysis(unstamped);
+    setApplied(unstamped);
     setSelected(new Set());
     if (!input) {
-      setPreview(idle);
+      setPreview(unstamped);
       return;
     }
-    setPreview({ status: 'loading' });
+    setPreview({ stamp, load: { status: 'loading' } });
     const timer = setTimeout(
       () => {
         api
           .preview(mode, input)
           .then((value) => {
-            if (latest.current === id) setPreview({ status: 'ready', value });
+            if (latest.current === id) setPreview({ stamp, load: { status: 'ready', value } });
           })
           .catch((error: unknown) => {
-            if (latest.current === id) setPreview({ status: 'error', error: toApiError(error) });
+            if (latest.current === id) setPreview({ stamp, load: { status: 'error', error: toApiError(error) } });
           });
       },
       kind === 'custom' ? PREVIEW_DEBOUNCE_MS : 0,
     );
     return () => clearTimeout(timer);
-    // `key` stands for the content of `input`.
-  }, [mode, key, kind]);
+    // `stamp` stands for the mode and the content of `input`.
+  }, [stamp, kind]);
 
   async function approveAndAnalyze() {
     if (preview.status !== 'ready' || !input || blockedReason || analysis.status === 'loading') return;
     const id = ++latest.current;
-    setAnalysis({ status: 'loading' });
-    setApplied(idle);
+    setAnalysis({ stamp, load: { status: 'loading' } });
+    setApplied(unstamped);
     setSelected(new Set());
     try {
       const value = await api.analyze(mode, input, preview.value.hash);
-      if (latest.current === id) setAnalysis({ status: 'ready', value });
+      if (latest.current === id) setAnalysis({ stamp, load: { status: 'ready', value } });
     } catch (error) {
-      if (latest.current === id) setAnalysis({ status: 'error', error: toApiError(error) });
+      if (latest.current === id) setAnalysis({ stamp, load: { status: 'error', error: toApiError(error) } });
     }
   }
 
   function toggleRepair(repair: Repair) {
     const repairId = repairKey(repair);
-    setApplied(idle);
-    setSelected((current) => {
-      const next = new Set(current);
+    setApplied(unstamped);
+    setSelected((currentSelection) => {
+      const next = new Set(currentSelection);
       if (next.has(repairId)) next.delete(repairId);
       else next.add(repairId);
       return next;
@@ -119,12 +136,12 @@ export default function App() {
     const approvedRepairs = analysis.value.repairs.filter((repair) => selected.has(repairKey(repair)));
     if (approvedRepairs.length === 0) return;
     const id = ++latest.current;
-    setApplied({ status: 'loading' });
+    setApplied({ stamp, load: { status: 'loading' } });
     try {
       const value = await api.apply(input, analysis.value.output, approvedRepairs);
-      if (latest.current === id) setApplied({ status: 'ready', value });
+      if (latest.current === id) setApplied({ stamp, load: { status: 'ready', value } });
     } catch (error) {
-      if (latest.current === id) setApplied({ status: 'error', error: toApiError(error) });
+      if (latest.current === id) setApplied({ stamp, load: { status: 'error', error: toApiError(error) } });
     }
   }
 

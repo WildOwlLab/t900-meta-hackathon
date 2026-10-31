@@ -192,6 +192,53 @@ test('a normal session produces no console errors, warnings, page errors or fail
   expect(noise).toEqual([]);
 });
 
+test('the screen never shows a preview or findings for a different input than the one selected, not even for one frame', async ({ page }) => {
+  // Slow the page down, which widens any window in which stale content could be visible.
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Emulation.setCPUThrottlingRate', { rate: 6 });
+
+  const examples = [
+    { slug: 'refund-window', task: 'A customer on the ExampleCo Teams annual plan asks for a refund 45 days', requirement: 'State the standard refund window for annual plans.' },
+    { slug: 'retention-conflict', task: "Complete a customer's security questionnaire for ExampleCo Notes.", requirement: 'State how long deleted workspace data is kept.' },
+    { slug: 'expense-injection', task: 'An employee took two clients to dinner while travelling.', requirement: 'State whether a $180 dinner for three people can be expensed.' },
+  ];
+
+  await page.goto('/');
+  await expect(page.getByTestId('preview-card')).toBeVisible();
+
+  // Check after EVERY change to the page, so a single stale frame is caught.
+  await page.evaluate((cases) => {
+    const violations: string[] = [];
+    (window as unknown as { __violations: string[] }).__violations = violations;
+    const check = () => {
+      const selected = document.querySelector<HTMLInputElement>('input[name=example]:checked')?.value;
+      const expected = cases.find((c) => c.slug === selected);
+      if (!expected) return;
+      const preview = document.querySelector('[data-testid=preview-text]')?.textContent;
+      if (preview && !preview.includes(expected.task)) violations.push(`a preview for another input is on screen while ${selected} is selected`);
+      const findings = document.querySelector('[data-testid=findings]')?.textContent;
+      if (findings && !findings.includes(expected.requirement)) violations.push(`findings for another input are on screen while ${selected} is selected`);
+      const revised = document.querySelector('[data-testid=revised-pack]');
+      const ids = [...(revised?.querySelectorAll('[data-passage-id]') ?? [])].map((el) => el.getAttribute('data-passage-id') ?? '');
+      if (revised && !ids.every((id) => id.startsWith(selected!.split('-')[0]!.slice(0, 3)))) violations.push(`a revised pack for another input is on screen while ${selected} is selected`);
+    };
+    new MutationObserver(check).observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true });
+  }, examples);
+
+  for (const example of [...examples, examples[1]!, examples[0]!]) {
+    await page.getByTestId(`example-${example.slug}`).check();
+    await expect(page.getByTestId('preview-text')).toContainText(example.task);
+    await approve(page).click();
+    await expect(page.getByTestId('findings')).toContainText(example.requirement);
+    await page.getByTestId('repairs').getByRole('checkbox').first().check();
+    await page.getByRole('button', { name: /^Apply 1/ }).click();
+    await expect(page.getByTestId('revised-pack')).toBeVisible();
+  }
+
+  const violations = await page.evaluate(() => (window as unknown as { __violations: string[] }).__violations);
+  expect([...new Set(violations)]).toEqual([]);
+});
+
 test('the page declares an icon, so no /favicon.ico request is made and none fails', async ({ page }) => {
   const requested: string[] = [];
   page.on('request', (request) => requested.push(new URL(request.url()).pathname));

@@ -15,7 +15,10 @@ import { FIXTURE_NOTICE } from '../../src/shared/types';
 import { STUB_CHAT_URL, STUB_KEY, STUB_MODEL_RETURNED, STUB_ORIGIN } from './support/constants';
 import { customBlocks, customInput, customPackNumbers, customTask } from './support/custom-case';
 
-// The stub keeps shared state (requests received, a queued one-off reply), so these run one at a time.
+// The stub keeps shared state (requests received, a queued one-off reply), so these run one at a time, in order.
+// That is safe in a normal run. It is NOT safe to run several copies of this file at once against the same
+// stub, for example `--repeat-each` with several workers: the copies would overwrite each other's state.
+// Use `--workers=1` if you repeat these tests.
 test.describe.configure({ mode: 'serial' });
 
 interface Recorded {
