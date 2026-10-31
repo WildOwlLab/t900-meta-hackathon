@@ -157,6 +157,10 @@ vite.config.ts.timestamp-*
 !.dev.vars.example
 
 .wrangler/
+
+# Raw responses saved by scripts/smoke-meta.ts (live runs only)
+.smoke/
+
 coverage/
 playwright-report/
 test-results/

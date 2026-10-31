@@ -1,0 +1,52 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  line-height: 1.5;
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+}
+
+.banner {
+  padding: 0.6rem 0.8rem;
+  border: 1px solid currentColor;
+  border-radius: 0.4rem;
+}
+
+.examples {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
+}
+
+.examples li {
+  padding: 0.8rem 1rem;
+  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-radius: 0.5rem;
+}
+
+.examples h3 {
+  margin: 0 0 0.4rem;
+}
+
+.meta {
+  font-size: 0.9rem;
+  opacity: 0.85;
+}
+
+.tag {
+  display: inline-block;
+  padding: 0 0.45rem;
+  margin-right: 0.4rem;
+  border: 1px solid currentColor;
+  border-radius: 0.3rem;
+  font-size: 0.8rem;
+}

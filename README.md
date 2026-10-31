@@ -7,7 +7,12 @@ Built for the Meta Global AI Developer Hackathon.
 
 ## Status
 
-Under development. The workflow below is planned, not yet implemented.
+Under development. Milestone 1 is in place: shared schema, validator, prompt builder,
+three synthetic examples, and a gated smoke-test script. The API routes, the review UI,
+and the live model integration are not built yet. No live model call has been made, so
+there are no results to report.
+
+The workflow below is planned, not yet implemented.
 
 ## Planned workflow
 
@@ -30,9 +35,23 @@ documented, and separate from the standalone execution path.
 
 ## Setup
 
-Instructions will be added with the first runnable version.
-Synthetic examples will be included.
-Fixture mode and live model mode will be clearly distinguished.
+Requires Node 22 or newer.
+
+```bash
+npm install
+npm test             # unit and hygiene tests, no network
+npm run typecheck
+npm run dev:web      # placeholder UI at http://localhost:5173
+npm run test:e2e     # Playwright; on a fresh machine run `npx playwright install chromium` first
+```
+
+Synthetic examples are built in. Fixture mode and live model mode will be clearly
+distinguished: fixture output is hand-written and never comes from a model.
+
+Live mode needs `META_API_KEY`, `META_API_URL` and `META_MODEL` (names only in
+`.env.example`). Provider details are unverified, see [docs/PROVIDER.md](docs/PROVIDER.md).
+Nothing is sent to a provider unless you run `npm run smoke:meta -- --yes`; without
+`--yes` it only prints the request it would send.
 
 ## Privacy
 
