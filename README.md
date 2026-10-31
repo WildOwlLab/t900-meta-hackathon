@@ -1,4 +1,4 @@
-# T900 Evidence Check
+# T900 Meta Hackathon
 
 A standalone Meta-powered tool for checking whether an AI context
 pack contains the evidence needed to answer a task.
