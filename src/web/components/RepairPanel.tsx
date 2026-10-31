@@ -1,6 +1,5 @@
-import type { Example } from '../../examples';
 import type { AnalyzeResponse, ApplyResponse } from '../../shared/api';
-import type { Repair } from '../../shared/types';
+import type { AnalysisInput, Repair } from '../../shared/types';
 import type { Load } from '../load';
 import { ErrorCard } from './ErrorCard';
 
@@ -8,7 +7,7 @@ export const repairKey = (repair: Repair): string => `${repair.requirementId}|${
 
 interface PanelProps {
   analysis: AnalyzeResponse;
-  example: Example;
+  input: AnalysisInput;
   selected: ReadonlySet<string>;
   applied: Load<ApplyResponse>;
   onToggle: (repair: Repair) => void;
@@ -16,7 +15,7 @@ interface PanelProps {
 }
 
 /** Nothing is selected by default. A repair is applied only after the user ticks it and clicks Apply. */
-export function RepairPanel({ analysis, example, selected, applied, onToggle, onApply }: PanelProps) {
+export function RepairPanel({ analysis, input, selected, applied, onToggle, onApply }: PanelProps) {
   const count = analysis.repairs.filter((repair) => selected.has(repairKey(repair))).length;
 
   return (
@@ -32,7 +31,7 @@ export function RepairPanel({ analysis, example, selected, applied, onToggle, on
       ) : (
         <ul className="repairs">
           {analysis.repairs.map((repair) => {
-            const passage = example.input.sources.find((candidate) => candidate.id === repair.passageId);
+            const passage = input.sources.find((candidate) => candidate.id === repair.passageId);
             return (
               <li key={repairKey(repair)}>
                 <label className="choice">

@@ -1,7 +1,7 @@
-import type { Example } from '../../examples';
 import type { ApplyResponse } from '../../shared/api';
+import type { AnalysisInput } from '../../shared/types';
 
-export function RevisedPack({ applied, example }: { applied: ApplyResponse; example: Example }) {
+export function RevisedPack({ applied, input }: { applied: ApplyResponse; input: AnalysisInput }) {
   return (
     <section aria-labelledby="revised-heading" data-testid="revised-pack">
       <h2 id="revised-heading">Revised context pack ({applied.revisedPackSize} passages)</h2>
@@ -12,7 +12,7 @@ export function RevisedPack({ applied, example }: { applied: ApplyResponse; exam
       </p>
       <ul className="passages">
         {applied.input.pack.map((id) => {
-          const passage = example.input.sources.find((candidate) => candidate.id === id);
+          const passage = input.sources.find((candidate) => candidate.id === id);
           const added = applied.added.find((candidate) => candidate.passageId === id);
           return (
             <li key={id} data-testid="revised-pack-item" data-passage-id={id}>

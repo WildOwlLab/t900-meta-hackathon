@@ -16,7 +16,8 @@
     "build": "tsc --noEmit && vite build",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "smoke:meta": "tsx scripts/smoke-meta.ts"
+    "smoke:meta": "tsx scripts/smoke-meta.ts",
+    "eval": "tsx scripts/eval.ts"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.5",

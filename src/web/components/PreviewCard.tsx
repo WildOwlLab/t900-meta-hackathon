@@ -5,10 +5,12 @@ import { ErrorCard } from './ErrorCard';
 interface Props {
   preview: Load<PreviewResponse>;
   busy: boolean;
+  /** When set, Approve is disabled and this says why. The preview itself is still shown. */
+  blockedReason: string | null;
   onApprove: () => void;
 }
 
-export function PreviewCard({ preview, busy, onApprove }: Props) {
+export function PreviewCard({ preview, busy, blockedReason, onApprove }: Props) {
   if (preview.status === 'loading' || preview.status === 'idle') {
     return <p className="note">Preparing the outbound text…</p>;
   }
@@ -40,9 +42,14 @@ export function PreviewCard({ preview, busy, onApprove }: Props) {
       <pre data-testid="preview-text" tabIndex={0} aria-label="Exact outbound text">
         {p.text}
       </pre>
-      <button type="button" className="primary" onClick={onApprove} disabled={busy}>
+      <button type="button" className="primary" onClick={onApprove} disabled={busy || blockedReason !== null}>
         {busy ? 'Analyzing…' : 'Approve & Analyze'}
       </button>
+      {blockedReason && (
+        <p className="note" data-testid="approve-blocked">
+          {blockedReason}
+        </p>
+      )}
     </section>
   );
 }

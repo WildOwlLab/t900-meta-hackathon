@@ -7,20 +7,22 @@ Built for the Meta Global AI Developer Hackathon.
 
 ## Status
 
-Under development. Milestone 2 is in place: schema, validator, prompt builder, three
-synthetic examples, a local API (preview, analyze, apply), and a browser UI with an
-outbound-text preview, an explicit approval step, four-bucket findings, and repairs you
-approve one by one. Fixture mode runs with no setup.
+Under development. Milestone 3 is in place: a local API (preview, analyze, apply), and a browser
+UI with an outbound-text preview, an explicit approval step, four-bucket findings, repairs you
+approve one by one, custom input (paste your own task and passages), and exports of the revised
+pack and the evidence report. A reproducible benchmark runner (`npm run eval`) scores 13 cases
+against gold labels. Fixture mode runs with no setup.
 
-Live mode is built but has only been tested against stubbed responses. No live model call
-has been made, so there are no results to report.
+Live mode is built but has only been tested against stubbed responses, including a stub provider
+on `127.0.0.1` in the browser tests. **No live model call has been made**, so there are no model
+results to report. The benchmark's numbers come from a sanity-check oracle and a naive keyword
+baseline, and they are labelled as such. See [docs/EVALUATION.md](docs/EVALUATION.md).
 
-Not built yet: exporting the revised pack and report, pasting your own sources, and any
-deployment.
+Not built yet: any deployment, and a repair that removes passages (repairs only add).
 
 ## Workflow
 
-Steps 1 to 5 work today on the three built-in examples. Step 6 is not built.
+All six steps work: on the built-in examples in fixture mode, and on your own text in live mode.
 
 1. Provide a task, source passages, and an initial context pack.
 2. Preview and approve the text sent to the model provider.
@@ -47,9 +49,10 @@ Requires Node 22 or newer.
 npm install
 npm run start:server   # API on http://127.0.0.1:8787, loopback only
 npm run dev:web        # UI at http://localhost:5173 (second terminal)
-npm test               # unit, API and hygiene tests, no network
+npm test               # unit, API and hygiene tests, no external network
 npm run typecheck
-npm run test:e2e       # Playwright, fixture mode only; on a fresh machine run `npx playwright install chromium` first
+npm run test:e2e       # Playwright; on a fresh machine run `npx playwright install chromium` first
+npm run eval           # benchmark: oracle + keyword baseline, deterministic, no network
 ```
 
 ### Modes
@@ -63,6 +66,22 @@ npm run test:e2e       # Playwright, fixture mode only; on a fresh machine run `
 The server has no login and listens on `127.0.0.1` only. Do not expose it publicly while a
 key is configured.
 
+### Your own input
+
+The **Custom input** tab takes a task, source passages with IDs, and a tick for each passage that
+is already in the context pack. Pasted text is split into passages on blank lines and given IDs
+`p1`, `p2`, and so on, which you can edit. Nothing is stored. Fixture mode only has hand-written
+answers for the built-in examples, so analysing your own text needs live mode. The preview still
+shows exactly what live mode would send.
+
+### Export
+
+After an analysis you can download the revised context pack (Markdown or plain text) and the
+evidence report (JSON, or a readable summary). Files are built in your browser and nothing is
+uploaded. Passage text is copied from your sources unchanged, and every file says where the
+analysis came from. A fixture export says it is not a model result. The JSON report carries the
+sources, the analysis and the approval hash, so it can be re-validated on its own.
+
 ### Approval
 
 Every analysis starts with a preview of the exact outbound text and its SHA-256. The server
@@ -75,8 +94,14 @@ passage to the pack by ID and writes no text.
 
 Provider details are unverified, see [docs/PROVIDER.md](docs/PROVIDER.md). `META_API_URL` is
 the provider's OpenAI-compatible base URL, and `/chat/completions` is added to it. Nothing
-reaches a provider unless you approve it in the UI in live mode, or run
-`npm run smoke:meta -- --yes`; without `--yes` the script only prints the request it would send.
+reaches a provider unless you approve it in the UI in live mode, or run one of the two scripts
+below with `--yes`. Without `--yes` each script only prints what it would send.
+
+```bash
+npm run smoke:meta -- --yes --negative-control   # a deliberately bad key must be refused
+npm run smoke:meta -- --yes                      # one real round trip, checked by the validator
+npm run eval -- --analyzer live --yes            # all 13 benchmark cases against the real model
+```
 
 ## Privacy
 
@@ -85,5 +110,8 @@ Do not commit API keys, private documents, or user data.
 
 ## Evaluation
 
-No performance claims yet.
-Tests, methods, results, and limitations will be documented.
+No model has been evaluated, and there are no performance claims. `npm run eval` scores an
+oracle (a sanity check) and a naive keyword baseline on 13 cases, and can score a live model once
+you run it with credentials. Methods, the numbers so far, and the limitations are in
+[docs/EVALUATION.md](docs/EVALUATION.md). The 13 cases are a development set written by the same
+authors as the prompt and validator, not a held-out test.

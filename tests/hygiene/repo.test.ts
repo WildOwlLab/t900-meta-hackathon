@@ -71,6 +71,18 @@ describe('H4: browser code stays on the browser side', () => {
     expect(hits).toEqual([]);
   });
 
+  it('the evaluation harness stays out of the app: nothing in the browser or the server imports it', () => {
+    const app = files.filter((file) => /^src\/(web|server|shared)\/.*\.(ts|tsx)$/.test(file));
+    expect(app.length).toBeGreaterThan(10);
+    expect(app.filter((file) => /from\s+['"][^'"]*\/eval(\/|['"])/.test(read(file)))).toEqual([]);
+  });
+
+  it('the evaluation harness never reaches the network on its own', () => {
+    const evalFiles = files.filter((file) => file.startsWith('src/eval/') && file.endsWith('.ts'));
+    expect(evalFiles.length).toBeGreaterThan(5);
+    expect(evalFiles.filter((file) => /\bfetch\s*\(|node:https?|node:net|XMLHttpRequest/.test(read(file)))).toEqual([]);
+  });
+
   it('the shared folder does not import server code either', () => {
     const shared = files.filter((file) => file.startsWith('src/shared/') && file.endsWith('.ts'));
     expect(shared.filter((file) => /from\s+['"][^'"]*\/server\//.test(read(file)))).toEqual([]);

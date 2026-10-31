@@ -161,6 +161,9 @@ vite.config.ts.timestamp-*
 # Raw responses saved by scripts/smoke-meta.ts (live runs only)
 .smoke/
 
+# Request bodies and raw responses saved by npm run eval (live runs only)
+.eval/
+
 coverage/
 playwright-report/
 test-results/

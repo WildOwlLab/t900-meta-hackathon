@@ -95,6 +95,69 @@ code {
   margin-top: 0;
 }
 
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin: 0.5rem 0 1rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.tab {
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 0.4rem 0.4rem 0 0;
+  font-weight: 500;
+}
+
+.tab.selected {
+  border-color: var(--line);
+  background: var(--soft);
+  font-weight: 700;
+}
+
+.field {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0.6rem 0;
+}
+
+.field > label {
+  font-weight: 600;
+}
+
+.field input,
+.field textarea,
+select {
+  font: inherit;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 0.3rem;
+  background: transparent;
+  color: inherit;
+}
+
+.field textarea {
+  resize: vertical;
+}
+
+fieldset.passage-editor {
+  margin: 0.75rem 0;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+}
+
+.inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  margin: 0.5rem 0;
+}
+
+.valid {
+  font-weight: 600;
+}
+
 .card.error {
   border-color: currentColor;
   border-width: 2px;

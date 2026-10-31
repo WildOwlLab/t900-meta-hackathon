@@ -1,6 +1,5 @@
-import type { Example } from '../../examples';
 import type { AnalyzeResponse } from '../../shared/api';
-import type { RequirementStatus } from '../../shared/types';
+import type { AnalysisInput, RequirementStatus } from '../../shared/types';
 
 const BUCKETS: readonly { status: RequirementStatus; title: string; blurb: string }[] = [
   { status: 'supported', title: 'Supported', blurb: 'The context pack answers these.' },
@@ -15,12 +14,12 @@ const BUCKETS: readonly { status: RequirementStatus; title: string; blurb: strin
 
 interface Props {
   analysis: AnalyzeResponse;
-  example: Example;
+  input: AnalysisInput;
 }
 
-export function FindingsView({ analysis, example }: Props) {
-  const pack = new Set(example.input.pack);
-  const passage = (id: string) => example.input.sources.find((candidate) => candidate.id === id);
+export function FindingsView({ analysis, input }: Props) {
+  const pack = new Set(input.pack);
+  const passage = (id: string) => input.sources.find((candidate) => candidate.id === id);
 
   return (
     <section aria-labelledby="findings-heading" data-testid="findings">
