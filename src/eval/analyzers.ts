@@ -13,7 +13,7 @@ import { ModelError } from '../server/model/client';
 import { createLiveClient, redact } from '../server/model/meta';
 import { buildChatRequest, serializeRequest } from '../server/prompt';
 import { validateModelOutput } from '../server/validator';
-import { deriveFacts, type Facts } from '../shared/facts';
+import { compareText, deriveFacts, type Facts } from '../shared/facts';
 import type { ValidationResult } from '../shared/types';
 import type { ModelOutput } from '../shared/types';
 import type { Analyzer, AnalyzerResult, EvalCase } from './types';
@@ -107,7 +107,7 @@ export function keywordFacts(testCase: EvalCase): Facts {
   return {
     supported: relevant.filter((p) => inPack.has(p.id)).map((p) => p.id).sort(),
     missing: [...missing].sort(),
-    conflicts: conflicts.sort((x, y) => x.join('|').localeCompare(y.join('|'))),
+    conflicts: conflicts.sort((x, y) => compareText(x.join('|'), y.join('|'))),
     // A keyword matcher has no notion of "a question nothing answers", so it never reports one.
     unanswerable: 0,
     repairPassageIds: [...missing].sort(),

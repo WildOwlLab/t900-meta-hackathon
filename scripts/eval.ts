@@ -225,7 +225,10 @@ export async function runEval(deps: EvalDeps): Promise<number> {
       out(`${DOCS_PATH} has no ${DOCS_BEGIN} ... ${DOCS_END} block to update.`);
       return 2;
     }
-    deps.writeFile(DOCS_PATH, doc.slice(0, start) + renderDocsBlock(report) + doc.slice(end + DOCS_END.length));
+    // Keep the document's own line endings. A CRLF checkout must not end up with a block of LF lines in it.
+    const eol = doc.includes('\r\n') ? '\r\n' : '\n';
+    const block = renderDocsBlock(report).replace(/\r?\n/g, eol);
+    deps.writeFile(DOCS_PATH, doc.slice(0, start) + block + doc.slice(end + DOCS_END.length));
     out(`Updated ${DOCS_PATH}`);
   }
   return 0;

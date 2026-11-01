@@ -1,0 +1,3 @@
+# Keep every text file with LF line endings in the working tree, on every platform. Without this, a Windows
+# checkout with core.autocrlf=true turns files into CRLF, which changes generated documents and Markdown diffs.
+* text=auto eol=lf

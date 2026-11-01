@@ -29,6 +29,12 @@ export interface Facts {
 
 const sortedUnique = (ids: Iterable<string>): string[] => [...new Set(ids)].sort();
 
+/**
+ * Plain code-unit ordering. localeCompare depends on the machine's locale and ICU data, so it can order the
+ * same IDs differently on another computer, which would change generated reports and their checks.
+ */
+export const compareText = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+
 export function deriveFacts(output: ModelOutput): Facts {
   const supported: string[] = [];
   const missing: string[] = [];
@@ -56,7 +62,7 @@ export function deriveFacts(output: ModelOutput): Facts {
   return {
     supported: sortedUnique(supported),
     missing: sortedUnique(missing),
-    conflicts: conflicts.sort((a, b) => a.join('|').localeCompare(b.join('|'))),
+    conflicts: conflicts.sort((a, b) => compareText(a.join('|'), b.join('|'))),
     unanswerable,
     repairPassageIds: sortedUnique(output.repairs.map((repair) => repair.passageId)),
   };

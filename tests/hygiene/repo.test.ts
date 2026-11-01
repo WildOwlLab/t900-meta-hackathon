@@ -11,7 +11,20 @@ const root = process.cwd();
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', '.smoke', 'coverage', 'playwright-report', 'test-results']);
 const SKIP_FILES = new Set(['package-lock.json']);
 const TEXT = /\.(ts|tsx|js|mjs|json|md|css|html|ya?ml)$|(^|\/)\.env\.example$|(^|\/)\.gitignore$/;
+/** Always written with forward slashes, because every path below is normalised to forward slashes. */
 const SELF = 'tests/hygiene/repo.test.ts';
+
+/**
+ * Windows hands back backslash paths (src\web\App.tsx). Every pattern in this file is written with forward
+ * slashes, so paths are converted ONCE, here, before anything is matched against them.
+ */
+const toPosix = (path: string): string => path.replace(/\\/g, '/');
+
+/**
+ * Files may be checked out with CRLF line endings (Windows with core.autocrlf, or a ZIP made there).
+ * Content is compared as LF text so a line ending never decides whether a test passes.
+ */
+const toLf = (text: string): string => text.replace(/\r\n/g, '\n');
 
 function listFiles(dir: string): string[] {
   const out: string[] = [];
@@ -25,9 +38,54 @@ function listFiles(dir: string): string[] {
   return out;
 }
 
-const files = listFiles(root).map((path) => relative(root, path));
+const files = listFiles(root).map((path) => toPosix(relative(root, path)));
+// This file contains the forbidden patterns as data, so it must not scan itself.
 const textFiles = files.filter((file) => TEXT.test(file) && file !== SELF);
-const read = (file: string) => readFileSync(join(root, file), 'utf8');
+const read = (file: string) => toLf(readFileSync(join(root, file), 'utf8'));
+
+/** True inside a real git work tree. False for a ZIP download, or if git is not installed. */
+function insideGitWorkTree(): boolean {
+  try {
+    return execFileSync('git', ['rev-parse', '--is-inside-work-tree'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() === 'true';
+  } catch {
+    return false;
+  }
+}
+
+describe('cross-platform file handling', () => {
+  it('turns Windows paths into forward-slash paths, and leaves forward-slash paths alone', () => {
+    expect(toPosix('src\\web\\App.tsx')).toBe('src/web/App.tsx');
+    expect(toPosix('tests\\hygiene\\repo.test.ts')).toBe(SELF);
+    expect(toPosix('src/web/App.tsx')).toBe('src/web/App.tsx');
+    expect(toPosix('.env.example')).toBe('.env.example');
+  });
+
+  it('turns CRLF into LF, and leaves LF alone', () => {
+    expect(toLf('A=\r\nB=\r\n')).toBe('A=\nB=\n');
+    expect(toLf('A=\nB=\n')).toBe('A=\nB=\n');
+    expect(toLf('no newline')).toBe('no newline');
+  });
+
+  it('lists every file with forward slashes only, so the patterns below match on any platform', () => {
+    expect(files.length).toBeGreaterThan(50);
+    expect(files.filter((file) => file.includes('\\'))).toEqual([]);
+    expect(files).toContain('src/web/App.tsx');
+  });
+
+  it('can find itself under its normalised path, and then excludes itself from every scan', () => {
+    expect(files).toContain(SELF);
+    expect(textFiles).not.toContain(SELF);
+  });
+
+  it('never returns CRLF text from read()', () => {
+    expect(read('.env.example')).not.toContain('\r');
+    expect(read('README.md')).not.toContain('\r');
+  });
+
+  it('keeps line endings LF in the repository itself, so a Windows checkout is not converted', () => {
+    expect(read('.gitattributes')).toMatch(/^\*\s+text=auto\s+eol=lf$/m);
+  });
+});
 
 describe('H2: standalone and separate from existing assets', () => {
   it('has no reference to the existing repositories or the production site', () => {
@@ -108,7 +166,7 @@ describe('H5: nothing private or temporary is committed', () => {
   it('tracks no build output, test output, logs, backups or editor files', () => {
     let tracked: string[];
     try {
-      tracked = execFileSync('git', ['ls-files'], { cwd: root, encoding: 'utf8' }).split('\n').filter(Boolean);
+      tracked = execFileSync('git', ['ls-files'], { cwd: root, encoding: 'utf8' }).split(/\r?\n/).filter(Boolean).map(toPosix);
     } catch {
       return; // not a git checkout, nothing to check
     }
@@ -171,7 +229,18 @@ describe('the README stays true', () => {
 
 describe('H3: no secrets', () => {
   it('ignores .env files in git', () => {
-    expect(() => execFileSync('git', ['check-ignore', '-q', '.env'], { cwd: root })).not.toThrow();
+    if (insideGitWorkTree()) {
+      expect(() => execFileSync('git', ['check-ignore', '-q', '.env'], { cwd: root })).not.toThrow();
+    } else {
+      // A ZIP download has no .git, so ask the ignore file itself.
+      expect(read('.gitignore')).toMatch(/^\.env$/m);
+      expect(read('.gitignore')).toMatch(/^!\.env\.example$/m);
+    }
+  });
+
+  it('lists .env in .gitignore, whether or not git is available', () => {
+    expect(read('.gitignore')).toMatch(/^\.env$/m);
+    expect(read('.gitignore')).toMatch(/^\.env\.\*$/m);
   });
 
   it('commits only a value-free .env.example', () => {

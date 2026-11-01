@@ -132,7 +132,8 @@ describe('rendering', () => {
 });
 
 describe('docs/EVALUATION.md', () => {
-  const doc = readFileSync(join(process.cwd(), 'docs/EVALUATION.md'), 'utf8');
+  // A Windows checkout may have CRLF line endings. The generated block is LF, so compare as LF.
+  const doc = readFileSync(join(process.cwd(), 'docs/EVALUATION.md'), 'utf8').replace(/\r\n/g, '\n');
 
   it('has exactly one results block', () => {
     expect(doc.split(DOCS_BEGIN)).toHaveLength(2);

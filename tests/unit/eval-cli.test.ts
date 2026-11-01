@@ -136,6 +136,23 @@ describe('--write-docs', () => {
     expect(written).toBe(`# Doc\n\nbefore\n\n${expected}\n\nafter\n`);
   });
 
+  it('keeps a CRLF document CRLF all the way through, with no bare LF left behind', async () => {
+    const crlf = doc.replace(/\n/g, '\r\n');
+    const t = setup(['--write-docs'], { docs: crlf });
+    expect(await t.run()).toBe(0);
+    const written = t.files['docs/EVALUATION.md']!;
+    expect(written.startsWith('# Doc\r\n\r\nbefore\r\n\r\n')).toBe(true);
+    expect(written.endsWith('\r\n\r\nafter\r\n')).toBe(true);
+    expect(written.replace(/\r\n/g, '')).not.toContain('\n'); // every line break is CRLF
+    expect(written.replace(/\r\n/g, '\n')).toContain('### Headline metrics');
+  });
+
+  it('leaves an LF document LF, with no CR introduced', async () => {
+    const t = setup(['--write-docs'], { docs: doc });
+    await t.run();
+    expect(t.files['docs/EVALUATION.md']).not.toContain('\r');
+  });
+
   it('refuses unless it is the full dataset with the default analyzers, so documented numbers stay reproducible', async () => {
     for (const extra of [['--set', 'synthetic'], ['--cases', 'refund-window'], ['--analyzer', 'oracle']]) {
       const t = setup(['--write-docs', ...extra], { docs: doc });
