@@ -156,7 +156,7 @@ describe('docs/EVALUATION.md', () => {
 
   it('does not claim a model result anywhere outside the generated block', () => {
     const outside = doc.slice(0, doc.indexOf(DOCS_BEGIN)) + doc.slice(doc.indexOf(DOCS_END));
-    expect(outside).toContain('**Status: no model has been evaluated.**');
+    expect(outside).toContain('**Status: the table below has no model results.**');
     expect(outside).not.toMatch(/\d+(\.\d+)?% \(\d+\/\d+\)/); // no rate with counts outside the generated block
   });
 });

@@ -1,10 +1,11 @@
 # Evaluation
 
-**Status: no model has been evaluated.** The numbers below come from two analyzers that are
-not models: a sanity-check oracle and a naive keyword baseline. The analyzer that measures a
-real model (`live`) is built and tested against stubbed responses only. It has never been run
-against a real endpoint, so this file holds no model results and the README makes no
-performance claim.
+**Status: the table below has no model results.** It is generated offline from two analyzers
+that are not models: a sanity-check oracle and a naive keyword baseline. The analyzer that
+measures a real model (`live`) needs a key, so neither `npm test` nor the generator runs it.
+The project owner has run it once, against the Meta Model API with `muse-wonder-1.0`, and the
+figures they reported are in the README. Nothing here reproduces them, and they come from the
+13-case development set described below.
 
 ## What the automated tests show
 
@@ -172,4 +173,4 @@ It covers the deterministic analyzers only. Do not edit it by hand.
 - The Downstream Comparison panel is a demonstration, not a metric. Its answers are not scored, and the
   fixture pair is hand-written.
 - Token counts are an approximation.
-- Provider facts are unverified (see `docs/PROVIDER.md`).
+- Provider facts are only partly verified: one live run worked, and the official documentation has not been read (see `docs/PROVIDER.md`).

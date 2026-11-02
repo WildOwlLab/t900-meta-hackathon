@@ -120,10 +120,12 @@ npm run eval -- --analyzer live                  # PREVIEW of the benchmark run:
 npm run eval -- --analyzer live --yes            # all 13 benchmark cases against the real model
 ```
 
-> **Live status:** the live path is built and tested against stubbed providers, but it has **not yet
-> been run against a real endpoint**. Until it is, treat the provider table above as unverified. See
-> [docs/PROVIDER.md](docs/PROVIDER.md) for the checklist. The same goes for the live Downstream
-> Comparison, which uses the same host and key and has only been run against the stub.
+> **Live status:** verified and tested against the **Meta Model API** with the model `muse-wonder-1.0`.
+> The project owner ran the live path, including the 13-case benchmark below, with their own key. A run
+> needs a key, so it is not part of `npm test`, and you need your own key to repeat it. The Fireworks and
+> Baseten values in the table above were not part of that run and are still unchecked. The live Downstream
+> Comparison has only been run against the stub. [docs/PROVIDER.md](docs/PROVIDER.md) lists what the run
+> confirmed and what it did not.
 
 ## What to look at
 
@@ -150,11 +152,29 @@ npm run eval -- --analyzer live --yes            # all 13 benchmark cases agains
 
 ## Evaluation
 
-**No model has been evaluated, and there are no performance claims.** `npm run eval` scores a
-sanity-check oracle and a naive keyword baseline on 13 cases (3 built-in and 10 synthetic), and can
-score a live model once you run it with credentials. The methods, today's numbers and the limitations
-are in [docs/EVALUATION.md](docs/EVALUATION.md). The 13 cases are a development set written by the same
-authors as the prompt and validator, not a held-out test.
+`npm run eval` scores a sanity-check oracle and a naive keyword baseline on 13 cases (3 built-in and 10
+synthetic), and scores a live model when you run it with credentials. The oracle and baseline numbers, the
+methods and the limitations are in [docs/EVALUATION.md](docs/EVALUATION.md).
+
+**Live run: `muse-wonder-1.0` on the Meta Model API.** The project owner ran `npm run eval -- --analyzer
+live --yes` locally and reported these figures. `npm test` does not reproduce them, because a live run
+needs a key.
+
+| Measure | Result |
+| --- | --- |
+| Missing evidence: recall | 92.3% (12 of 13) |
+| Contradictions: recall | 100% (5 of 5) |
+| Unanswerable: precision | 100% |
+| Conflict false alarms | 0 (of 9 cases with no real conflict) |
+
+Read them with these limits in mind:
+
+- The 13 cases are a development set written by the same authors as the prompt and validator, not a
+  held-out test. These figures say little about how the system does on new data.
+- The counts are small, so a single case moves a figure a lot.
+- Only these four measures were recorded. Precision for missing evidence and for contradictions, recall
+  for unanswerable and the number of failed outputs are not recorded here yet, and a recall figure means
+  little without its precision.
 
 ## Browser support
 
@@ -176,7 +196,9 @@ download links that stay valid for 60 seconds), but that is not the same as havi
 
 ## Known limitations
 
-- Live mode has not been verified against a real provider, and no model has been scored.
+- Live mode has been run against one provider and model only (the Meta Model API with `muse-wonder-1.0`),
+  and scored only on the 13-case development set. Other hosts and models are untested, and nothing has
+  been measured on held-out data.
 - Repairs only add passages, so a revised pack is always larger than the initial pack. A repair that
   removes passages is not built.
 - Fixture mode can only analyse the three built-in examples.

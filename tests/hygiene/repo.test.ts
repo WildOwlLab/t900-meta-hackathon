@@ -216,14 +216,25 @@ describe('the README stays true', () => {
     expect([...named].filter((name) => !allowed.has(name))).toEqual([]);
   });
 
-  it('makes no performance claim: no percentages anywhere', () => {
-    expect(readme).not.toMatch(/\d+(\.\d+)?\s?%/);
+  it('reports percentages only for the live run, and only as recall or precision', () => {
+    // A percentage is a performance claim. The only ones allowed are the reported live-run figures, and each has to
+    // sit on a line that names the measure, so "99% accurate" or "twice as fast" cannot slip in under that exception.
+    const withPercent = readme.split('\n').filter((line) => /\d+(\.\d+)?\s?%/.test(line));
+    expect(withPercent.length).toBeGreaterThan(0);
+    expect(withPercent.filter((line) => !/\b(recall|precision)\b/i.test(line))).toEqual([]);
   });
 
-  it('says plainly that live mode and the model are unverified, and that Firefox and Safari were not tested', () => {
-    expect(readme).toMatch(/not yet[\s>]+been run against a real endpoint/); // the sentence may wrap inside a Markdown quote
-    expect(readme).toMatch(/No model has been evaluated/);
-    expect(readme).toMatch(/Firefox and Safari were not tested/);
+  it('says what the live run covered and what it did not, names the limits of its data, and says Firefox and Safari were not tested', () => {
+    const flat = readme.replace(/[\s>]+/g, ' '); // sentences wrap, and some sit inside a Markdown quote
+    // Scope: one provider, one model, run by the owner, not part of `npm test`, other hosts still unchecked.
+    expect(flat).toMatch(/verified and tested against the \*\*Meta Model API\*\* with the model `muse-wonder-1\.0`/);
+    expect(flat).toMatch(/not part of `npm test`/);
+    expect(flat).toMatch(/Fireworks and Baseten values[^.]*still unchecked/);
+    expect(flat).toMatch(/Downstream Comparison has only been run against the stub/);
+    // The figures come from the authors' own development set, and are not a claim about new data.
+    expect(flat).toMatch(/development set/);
+    expect(flat).toMatch(/not a held-out test/);
+    expect(flat).toMatch(/Firefox and Safari were not tested/);
   });
 });
 
