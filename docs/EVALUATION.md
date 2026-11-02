@@ -169,5 +169,7 @@ It covers the deterministic analyzers only. Do not edit it by hand.
   choice, and the failed-output column shows how often it bites.
 - The two prompt-injection cases test two phrasings. They do not show resistance to injection in
   general.
+- The Downstream Comparison panel is a demonstration, not a metric. Its answers are not scored, and the
+  fixture pair is hand-written.
 - Token counts are an approximation.
 - Provider facts are unverified (see `docs/PROVIDER.md`).

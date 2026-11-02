@@ -1,7 +1,17 @@
 import type { ApplyResponse } from '../../shared/api';
-import type { AnalysisInput } from '../../shared/types';
+import type { AnalysisInput, Mode } from '../../shared/types';
+import { DownstreamComparison } from './DownstreamComparison';
 
-export function RevisedPack({ applied, input }: { applied: ApplyResponse; input: AnalysisInput }) {
+interface Props {
+  applied: ApplyResponse;
+  input: AnalysisInput;
+  /** The mode the analysis ran in. It decides whether the downstream comparison is hand-written or live. */
+  mode: Mode;
+  /** The built-in example this input is, or null for custom text. */
+  slug: string | null;
+}
+
+export function RevisedPack({ applied, input, mode, slug }: Props) {
   return (
     <section aria-labelledby="revised-heading" data-testid="revised-pack">
       <h2 id="revised-heading">Revised context pack ({applied.revisedPackSize} passages)</h2>
@@ -29,6 +39,7 @@ export function RevisedPack({ applied, input }: { applied: ApplyResponse; input:
           );
         })}
       </ul>
+      <DownstreamComparison applied={applied} input={input} mode={mode} slug={slug} />
     </section>
   );
 }

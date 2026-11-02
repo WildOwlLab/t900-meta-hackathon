@@ -9,6 +9,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 import { examples } from '../../src/examples';
+import { extractContext } from '../../src/server/downstream';
 import { validateModelOutput } from '../../src/server/validator';
 import { EvidenceReportSchema } from '../../src/shared/export';
 import { FIXTURE_NOTICE } from '../../src/shared/types';
@@ -216,4 +217,108 @@ test('going back to fixture mode after a live run labels results as a fixture ag
   await expect(page.getByTestId('preview-text')).toContainText('mode: fixture');
   await approve(page).click();
   await expect(page.getByTestId('result-notice')).toHaveText(FIXTURE_NOTICE);
+});
+
+// ---------------------------------------------------------------------------
+// Downstream comparison, live path. The stub answers each request with one line naming the passages it was
+// given, so these tests can tell the two answers apart. That line is test plumbing, not a model.
+// ---------------------------------------------------------------------------
+
+async function reachLiveRevisedPack(page: Page) {
+  await chooseLive(page);
+  await approve(page).click();
+  await expect(page.getByTestId('findings')).toBeVisible();
+  const count = refund.fixtureOutput.repairs.length;
+  const boxes = page.getByTestId('repairs').getByRole('checkbox');
+  for (let i = 0; i < count; i += 1) await boxes.nth(i).check();
+  await page.getByRole('button', { name: `Apply ${count} approved repair${count === 1 ? '' : 's'}` }).click();
+  await expect(page.getByTestId('revised-pack')).toBeVisible();
+}
+
+const revisedRefundPack = [...refund.input.pack, ...refund.fixtureOutput.repairs.map((repair) => repair.passageId)];
+
+test('downstream comparison: previews both requests, sends nothing until approved, then shows both live answers', async ({ page, request }) => {
+  await reachLiveRevisedPack(page);
+  expect(await received(request)).toHaveLength(1); // the analysis, and nothing else so far
+
+  const panel = page.getByTestId('downstream');
+  await expect(panel.getByTestId('downstream-result')).toHaveCount(0);
+  await panel.getByRole('button', { name: 'Compare Downstream Task' }).click();
+
+  // The click shows the exact outbound text. It sends nothing.
+  const card = panel.getByTestId('downstream-preview');
+  await expect(card).toBeVisible();
+  await expect(card).toContainText(STUB_CHAT_URL);
+  await expect(card).toContainText('stub-model');
+  await expect(card).toContainText('two requests');
+  const text = (await card.getByTestId('downstream-preview-text').textContent()) ?? '';
+  const hash = (await card.getByTestId('downstream-preview-hash').textContent()) ?? '';
+  expect(text.startsWith(`purpose: downstream comparison`)).toBe(true);
+  expect(text).toContain(`destination: POST ${STUB_CHAT_URL}`);
+  expect(hash).toBe(sha256(text));
+  expect(await received(request)).toHaveLength(1);
+  await expect(panel.getByTestId('downstream-result')).toHaveCount(0);
+
+  // Approving sends exactly the two previewed bodies, with the key, and shows both answers.
+  await card.getByRole('button', { name: 'Approve & Compare' }).click();
+  const result = panel.getByTestId('downstream-result');
+  await expect(result).toBeVisible();
+  await expect(result).toHaveAttribute('data-source', 'live');
+
+  const sent = (await received(request)).slice(1);
+  expect(sent).toHaveLength(2);
+  for (const call of sent) {
+    expect(call.authorization).toBe(`Bearer ${STUB_KEY}`);
+    expect(text).toContain(call.body);
+  }
+  const given = sent.map((call) => extractContext((JSON.parse(call.body) as { messages: { content: string }[] }).messages[1]!.content).passages.map((p) => p.id));
+  expect(given.map((ids) => ids.join(',')).sort()).toEqual([refund.input.pack.join(','), revisedRefundPack.join(',')].sort());
+
+  await expect(result.getByTestId('downstream-notice')).toContainText('Live model output');
+  await expect(result.getByTestId('downstream-notice')).toContainText('has not checked either answer');
+  await expect(result.getByTestId('downstream-notice')).not.toContainText(FIXTURE_NOTICE);
+  await expect(result.getByTestId('downstream-initial').getByRole('heading', { level: 4 })).toHaveText('Initial Pack Response');
+  await expect(result.getByTestId('downstream-repaired').getByRole('heading', { level: 4 })).toHaveText('T900 Repaired Pack Response');
+  await expect(result.getByTestId('downstream-initial-answer')).toHaveText(`Stub answer, not a model. Context given: ${refund.input.pack.join(', ')}.`);
+  await expect(result.getByTestId('downstream-repaired-answer')).toHaveText(`Stub answer, not a model. Context given: ${revisedRefundPack.join(', ')}.`);
+  await expect(result).toContainText(`Model returned: ${STUB_MODEL_RETURNED}`);
+
+  // The approved preview is replaced by the result, and the key never reached the page.
+  await expect(panel.getByTestId('downstream-preview')).toHaveCount(0);
+  expect(await page.content()).not.toContain(STUB_KEY);
+});
+
+test('downstream comparison: a provider error is shown as an error, with no comparison and no fixture fallback', async ({ page, request }) => {
+  await reachLiveRevisedPack(page);
+  const panel = page.getByTestId('downstream');
+  await panel.getByRole('button', { name: 'Compare Downstream Task' }).click();
+  await expect(panel.getByTestId('downstream-preview')).toBeVisible();
+
+  await queueReply(request, { status: 401, body: 'bad key' });
+  await panel.getByRole('button', { name: 'Approve & Compare' }).click();
+
+  const error = panel.getByTestId('error-card');
+  await expect(error).toBeVisible();
+  await expect(error).toHaveAttribute('data-error-code', 'model_auth');
+  await expect(panel.getByTestId('downstream-result')).toHaveCount(0);
+  await expect(panel.getByTestId('downstream-initial-answer')).toHaveCount(0);
+  expect(await page.content()).not.toContain(STUB_KEY);
+});
+
+test('downstream comparison: the approval is for the exact text, and an edited request is refused', async ({ page }) => {
+  await reachLiveRevisedPack(page);
+  const panel = page.getByTestId('downstream');
+  await panel.getByRole('button', { name: 'Compare Downstream Task' }).click();
+  await expect(panel.getByTestId('downstream-preview')).toBeVisible();
+
+  // Change the request on its way out, as a tampered page would. The hash no longer matches.
+  await page.route('**/api/downstream-compare', async (route) => {
+    const body = route.request().postDataJSON() as { revisedPack: string[] };
+    await route.continue({ postData: JSON.stringify({ ...body, revisedPack: body.revisedPack.slice(0, -1) }) });
+  });
+  await panel.getByRole('button', { name: 'Approve & Compare' }).click();
+
+  const error = panel.getByTestId('error-card');
+  await expect(error).toHaveAttribute('data-error-code', 'approval_mismatch');
+  await expect(panel.getByTestId('downstream-result')).toHaveCount(0);
 });

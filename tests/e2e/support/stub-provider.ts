@@ -7,11 +7,14 @@
  *   POST /__next                queue one reply: { status, body?, content? }
  *
  * For a built-in example, or for the custom case in ./custom-case, it returns the hand-written output.
+ * For a downstream comparison request (the context block used by src/server/downstream.ts) it returns one
+ * line that names the passages it was given, so a test can tell the two answers apart.
  * That is test plumbing. It is not a model, and nothing it returns says anything about model quality.
  */
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { isDeepStrictEqual } from 'node:util';
 import { examples } from '../../../src/examples';
+import { CONTEXT_START, extractContext } from '../../../src/server/downstream';
 import { extractPayload } from '../../../src/server/prompt';
 import { STUB_KEY, STUB_MODEL_RETURNED, STUB_PORT } from './constants';
 import { customInput, customOutput } from './custom-case';
@@ -48,6 +51,15 @@ function cannedOutput(rawBody: string): unknown | null {
   const example = examples.find((candidate) => isDeepStrictEqual(candidate.input, input));
   if (example) return example.fixtureOutput;
   return isDeepStrictEqual(customInput, input) ? customOutput : null;
+}
+
+/** A downstream request carries the context block. The answer lists the passages the request was given. */
+function downstreamAnswer(rawBody: string): string | null {
+  const request = JSON.parse(rawBody) as { messages: { content: string }[] };
+  const user = request.messages[1]?.content ?? '';
+  if (!user.includes(`\n${CONTEXT_START}\n`)) return null;
+  const ids = extractContext(user).passages.map((passage) => passage.id);
+  return `Stub answer, not a model. Context given: ${ids.join(', ')}.`;
 }
 
 let counter = 0;
@@ -87,6 +99,9 @@ const server = createServer(async (req, res) => {
         if (next.status !== 200) return send(res, next.status, next.body ?? 'stub error', 'text/plain');
         return send(res, 200, completion(next.content ?? ''));
       }
+
+      const downstream = downstreamAnswer(body);
+      if (downstream !== null) return send(res, 200, completion(downstream));
 
       const output = cannedOutput(body);
       if (output === null) return send(res, 400, '{"error":"the stub has no canned answer for this input"}');

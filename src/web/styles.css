@@ -355,6 +355,59 @@ fieldset.passage-editor {
   font-weight: 700;
 }
 
+/* Downstream comparison: two answers side by side, stacked on narrow screens. */
+.downstream {
+  margin-top: 1.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--line);
+}
+
+.downstream h3 {
+  font-size: 1.1rem;
+}
+
+.compare {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.8rem;
+  margin: 0.75rem 0;
+}
+
+@media (min-width: 720px) {
+  .compare {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+.compare-col {
+  min-width: 0;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+}
+
+.compare-col h4 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+  line-height: 1.3;
+}
+
+.compare-col ul {
+  margin: 0.25rem 0 0;
+  padding-left: 1.2rem;
+  font-size: 0.9rem;
+}
+
+.answer {
+  margin: 0.5rem 0;
+  padding: 0.6rem 0.7rem;
+  border-left: 3px solid var(--line);
+  background: var(--soft);
+  font-size: 0.92rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 /* Phones and other narrow screens: stack layouts and make everything easy to tap. */
 @media (max-width: 640px) {
   main {

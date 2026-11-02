@@ -193,7 +193,9 @@ export default function App() {
           />
         </>
       )}
-      {applied.status === 'ready' && input && <RevisedPack applied={applied.value} input={input} />}
+      {applied.status === 'ready' && analysis.status === 'ready' && input && (
+        <RevisedPack applied={applied.value} input={input} mode={analysis.value.mode} slug={builtIn?.slug ?? null} />
+      )}
       {analysis.status === 'ready' && input && (
         <ExportPanel
           input={input}
