@@ -6,6 +6,7 @@ import type {
   PreviewResponse,
   RepairSelection,
 } from '../shared/api';
+import type { DownstreamCompareResponse, DownstreamPreviewResponse } from '../shared/downstream';
 import type { AnalysisInput, Mode, ModelOutput } from '../shared/types';
 
 export class ApiError extends Error {
@@ -65,6 +66,11 @@ export const api = {
     request<AnalyzeResponse>('/api/analyze', { mode, input, approvedHash }),
   apply: (input: AnalysisInput, analysis: ModelOutput, approvedRepairs: RepairSelection[]) =>
     request<ApplyResponse>('/api/apply', { input, analysis, approvedRepairs }),
+  // Live only. Fixture comparisons are shown from hand-written text and never call the server.
+  downstreamPreview: (input: AnalysisInput, revisedPack: string[]) =>
+    request<DownstreamPreviewResponse>('/api/downstream-preview', { mode: 'live', input, revisedPack }),
+  downstreamCompare: (input: AnalysisInput, revisedPack: string[], approvedHash: string) =>
+    request<DownstreamCompareResponse>('/api/downstream-compare', { mode: 'live', input, revisedPack, approvedHash }),
 };
 
 export function toApiError(error: unknown): ApiErrorBody['error'] {

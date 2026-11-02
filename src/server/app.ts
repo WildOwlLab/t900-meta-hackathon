@@ -10,10 +10,18 @@ import {
   type ApplyResponse,
   type ConfigResponse,
 } from '../shared/api';
+import {
+  DownstreamCompareRequestSchema,
+  DownstreamPreviewRequestSchema,
+  MAX_ANSWER_CHARS,
+  type DownstreamAnswer,
+  type DownstreamCompareResponse,
+} from '../shared/downstream';
 import { groupFindings } from '../shared/facts';
 import { FIXTURE_NOTICE, type Mode } from '../shared/types';
 import { buildPreview } from './approval';
 import { loadConfig, type Env } from './config';
+import { buildDownstream, checkRevisedPack } from './downstream';
 import { ModelError, type ModelClient, type ModelErrorCode } from './model/client';
 import { createFixtureClient } from './model/fixture';
 import { createLiveClient, redact } from './model/meta';
@@ -230,6 +238,101 @@ export function createApp(deps: AppDeps): Hono {
       added: applied.added,
       originalPackSize: input.pack.length,
       revisedPackSize: applied.input.pack.length,
+    };
+    return c.json(body);
+  });
+
+  // -------------------------------------------------------------------------
+  // Downstream comparison. Live only: fixture mode is shown from hand-written text in the browser.
+  // Same rule as analysis: no approval hash that matches the rebuilt text, no model call.
+  // -------------------------------------------------------------------------
+
+  app.post('/api/downstream-preview', async (c) => {
+    const raw = await readJson(c);
+    if (raw === INVALID_JSON) return c.json(failure('invalid_request', 'The request body is not valid JSON.'), 400);
+    const parsed = DownstreamPreviewRequestSchema.safeParse(raw);
+    if (!parsed.success) {
+      return c.json(failure('invalid_request', 'The request is not valid.', { issues: issuesFromZod(parsed.error) }), 400);
+    }
+    if (!config.live.available) return c.json(failure('live_unavailable', config.live.reason), 409);
+
+    const { input, revisedPack } = parsed.data;
+    const pack = checkRevisedPack(input, revisedPack);
+    if (!pack.ok) return c.json(failure('invalid_request', pack.message), 400);
+
+    return c.json((await buildDownstream(config.live.settings, input, revisedPack)).preview);
+  });
+
+  app.post('/api/downstream-compare', async (c) => {
+    const raw = await readJson(c);
+    if (raw === INVALID_JSON) return c.json(failure('invalid_request', 'The request body is not valid JSON.'), 400);
+
+    // No approval, no model call. Checked before anything else about the request.
+    if (isRecord(raw) && (raw.approvedHash === undefined || raw.approvedHash === null || raw.approvedHash === '')) {
+      return c.json(failure('approval_required', 'Approve the outbound text first. No approval hash was sent.'), 400);
+    }
+
+    const parsed = DownstreamCompareRequestSchema.safeParse(raw);
+    if (!parsed.success) {
+      return c.json(failure('invalid_request', 'The request is not valid.', { issues: issuesFromZod(parsed.error) }), 400);
+    }
+    const { input, revisedPack, approvedHash } = parsed.data;
+
+    const client = clients.live;
+    if (!config.live.available || !client) {
+      return c.json(failure('live_unavailable', config.live.available ? 'Live mode is not available.' : config.live.reason), 409);
+    }
+    const settings = config.live.settings;
+
+    const pack = checkRevisedPack(input, revisedPack);
+    if (!pack.ok) return c.json(failure('invalid_request', pack.message), 400);
+
+    // Rebuild the exact text from the request actually received, then compare with what was approved.
+    const { preview, bodies } = await buildDownstream(settings, input, revisedPack);
+    if (preview.hash !== approvedHash) {
+      return c.json(
+        failure('approval_mismatch', 'The text changed after you approved it. Review the new preview and approve it again.'),
+        409,
+      );
+    }
+
+    let initial, repaired;
+    try {
+      [initial, repaired] = await Promise.all([
+        client.complete({ body: bodies.initial, input }),
+        client.complete({ body: bodies.repaired, input }),
+      ]);
+    } catch (error) {
+      if (!(error instanceof ModelError)) throw error;
+      const mapped = MODEL_ERROR_RESPONSES[error.code];
+      return c.json(failure(mapped.code, error.message, { retryable: error.retryable }), mapped.status);
+    }
+
+    // The answer is free text from the model. It goes to the browser as plain text, scrubbed of the key and
+    // cut to a fixed length. T900 does not check it against the sources, and the screen says so.
+    const toAnswer = (packIds: string[], result: typeof initial): DownstreamAnswer => {
+      const cleaned = redact(result.text, settings.apiKey).trim();
+      return {
+        packIds,
+        answer: cleaned.slice(0, MAX_ANSWER_CHARS),
+        truncated: cleaned.length > MAX_ANSWER_CHARS,
+        model: result.model,
+        responseId: result.responseId,
+        usage: result.usage,
+        latencyMs: result.latencyMs,
+      };
+    };
+    const answers = { initial: toAnswer(preview.packs.initial, initial), repaired: toAnswer(preview.packs.repaired, repaired) };
+    if (answers.initial.answer === '' || answers.repaired.answer === '') {
+      return c.json(failure('model_bad_response', 'The provider answered, but one of the answers was empty, so no comparison is shown.', { retryable: true }), 502);
+    }
+
+    const body: DownstreamCompareResponse = {
+      mode: 'live',
+      task: input.task,
+      initial: answers.initial,
+      repaired: answers.repaired,
+      meta: { sentToProvider: true, destination: preview.destination, approvedHash },
     };
     return c.json(body);
   });

@@ -37,6 +37,10 @@ Then:
 - **Repairs only add original passages.** A repair picks a source passage by ID. It never writes text,
   and nothing is applied until you tick it and apply it.
 - **Export** the revised context pack (Markdown or text) and an evidence report (JSON or a summary).
+- **Compare downstream.** Under the revised pack, a Downstream Comparison panel puts two answers to the
+  task side by side, one written from the initial pack and one from the repaired pack. In fixture mode
+  they are hand-written illustrations. In live mode both come from the model, after you approve the exact
+  text of both requests. T900 does not check either answer.
 
 ## Try it in two minutes, with no API key
 
@@ -57,11 +61,15 @@ Open **http://localhost:5173**. `npm run dev` starts the API and the UI together
 3. Click **Approve & Analyze**.
 4. Read the four buckets. Each finding quotes the passage it relies on.
 5. Tick a proposed repair, click **Apply**, and see the revised pack.
-6. Download the revised pack or the evidence report.
+6. Click **Compare Downstream Task** under the revised pack to see the initial-pack answer and the
+   repaired-pack answer side by side.
+7. Download the revised pack or the evidence report.
 
 This is **fixture mode**, the default. Its answers are hand-written ideal outputs, they are never
 produced by a model, and every screen and export says so ("Hand-written fixture. Not a model result.").
-It shows the product and the safety checks. It does not show how well a model performs.
+It shows the product and the safety checks. It does not show how well a model performs. The two
+answers in the downstream comparison are the same kind of thing: written by hand to show what missing
+evidence can do to a finished answer, labelled as such on screen, and not a measurement.
 
 The **Custom input** tab takes your own task and passages. Fixture mode only has answers for the
 built-in examples, so analysing your own text needs live mode (below).
@@ -77,7 +85,8 @@ made-up key. Choose **Live** in the UI to see the whole live path: the destinati
 preview, the approval, the exact bytes sent, and how errors are reported.
 
 The stub is **not a model**. It returns hand-written answers for the three built-in examples and
-refuses anything else. It never leaves your machine.
+refuses anything else. For a downstream comparison it returns one line naming the passages it was given.
+It never leaves your machine.
 
 ## Try it with a real key (Meta models via an OpenAI-compatible host)
 
@@ -113,7 +122,8 @@ npm run eval -- --analyzer live --yes            # all 13 benchmark cases agains
 
 > **Live status:** the live path is built and tested against stubbed providers, but it has **not yet
 > been run against a real endpoint**. Until it is, treat the provider table above as unverified. See
-> [docs/PROVIDER.md](docs/PROVIDER.md) for the checklist.
+> [docs/PROVIDER.md](docs/PROVIDER.md) for the checklist. The same goes for the live Downstream
+> Comparison, which uses the same host and key and has only been run against the stub.
 
 ## What to look at
 
@@ -157,6 +167,8 @@ download links that stay valid for 60 seconds), but that is not the same as havi
 
 - **Live mode sends** the task and **every source passage** (not only the pack), exactly as shown in the
   preview, to the host named there. Each host has its own data terms. Fixture mode sends nothing.
+- **A live downstream comparison sends** the task and the passages of each pack (the initial pack and
+  the repaired pack, not every source) in two requests. It has its own preview and its own approval.
 - The API key stays on the server. It is never sent to the browser, and it is redacted from errors.
 - The server has **no login** and listens on `127.0.0.1` only. Do not expose it publicly while a key is set.
 - Exports are built in your browser. Nothing is uploaded, and custom input is not stored anywhere.
@@ -168,6 +180,8 @@ download links that stay valid for 60 seconds), but that is not the same as havi
 - Repairs only add passages, so a revised pack is always larger than the initial pack. A repair that
   removes passages is not built.
 - Fixture mode can only analyse the three built-in examples.
+- Downstream comparison answers are not checked or scored. The fixture pair is written for a pack with
+  every proposed repair applied, so a partly repaired pack shows the initial side only.
 - The "unanswerable" metric is matched by count only, and the benchmark has just 13 cases.
 - There is no deployment and no authentication.
 
@@ -178,7 +192,7 @@ src/shared/   schemas, types and the export builders, used by the server and the
 src/server/   validator, prompt builder, approval gate, repair engine, model clients, API routes
 src/web/      the React UI
 src/eval/     benchmark cases, scoring and analyzers
-src/examples/ the three built-in examples
+src/examples/ the three built-in examples, and their hand-written downstream answers
 scripts/      dev, eval and smoke-meta
 tests/        unit, api, e2e (Playwright) and hygiene tests
 docs/         PROVIDER.md (provider notes) and EVALUATION.md (method and results)

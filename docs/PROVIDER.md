@@ -67,6 +67,7 @@ table, when a row turns out to be wrong, then update the row.
 | `strict` | Not sent. The owner's note says "strict json_schema". The validator already rejects any output that breaks the schema, whether or not the provider enforces it. | Try `strict: true` in a smoke run only if the host documents it |
 | Not sent | `temperature`, max tokens, `top_p`, `seed`, `strict`, `stream` | Add each only after the docs confirm it, and only with a reason |
 | Response | `choices[0].message.content` is a string holding the JSON. Top-level `model`, `id` and `usage` are printed if present. | Unverified |
+| Downstream comparison | A plain chat completion: `model` and `messages` (one system, one user) with no `response_format`. Two are sent per comparison, in parallel, with the same system prompt and different passages. `choices[0].message.content` is read as free text and shown as plain text. | Same assumptions as the rows above, unverified |
 | Schema keywords | Only `type`, `properties`, `required`, `items`, `enum`, `additionalProperties`. Constraint keywords such as `minLength` and `pattern` are stripped, and the validator enforces them. | Provider support unverified |
 | Output format | Bare JSON. A Markdown code fence is rejected as invalid. | Revisit if the provider fences output |
 | Context limits | `LIMITS` in `src/shared/types.ts` are provisional caps. | Needs the model's real context window |
@@ -84,6 +85,8 @@ table, when a row turns out to be wrong, then update the row.
       availability in the account's country. Update the README privacy section to match.
 - [ ] Confirm the hackathon rules allow this use of the model, and what the submission
       must contain.
+- [ ] In live mode, apply a repair and run the Downstream Comparison once. Read the preview of both
+  requests first, then read both answers.
 - [ ] Put `META_API_KEY`, `META_API_URL` and `META_MODEL` in the environment. Never paste
       the key into chat or commit it.
 - [ ] Run `npm run smoke:meta` without `--yes` and read the request body.
@@ -95,3 +98,7 @@ table, when a row turns out to be wrong, then update the row.
 Live mode sends the text shown in the outbound preview to the host that `META_API_URL`
 names. That text includes the task and every source passage, not only the pack. Fixture
 mode sends nothing anywhere, and the preview says so.
+
+A live Downstream Comparison sends the task and the passages of each pack (the initial pack and the
+repaired pack, not every source) in two requests. It has its own preview, hash and approval, and an
+approval for a plain analysis cannot authorise it.
