@@ -233,7 +233,8 @@ function requirementLines(ctx: ExportContext, requirement: Requirement): string[
       `  - Evidence: [${evidence.passageId}] ${title} (${inPack.has(evidence.passageId) ? 'in pack' : 'not in pack'}): "${evidence.quote}"`,
     );
   }
-  lines.push(`  - Why: ${requirement.rationale}`);
+  // The rationale is optional. Leave the line out rather than print a bare "Why:".
+  if (requirement.rationale.trim() !== '') lines.push(`  - Why: ${requirement.rationale}`);
   return lines;
 }
 

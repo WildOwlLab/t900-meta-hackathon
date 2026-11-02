@@ -84,7 +84,7 @@ dataset is small.
 | Contradictions: recall, precision | A gold conflict is detected if a predicted `conflicting` requirement cites **all** of its passages (extra passages are allowed). One prediction can detect only one gold conflict. A predicted conflict that matches none is a false positive. |
 | Conflict false alarms | Of the cases with no gold conflict, how many got a conflict reported anyway. |
 | Unanswerable: recall, precision | The **number** of `unanswerable` requirements, matched by count only. This cannot tell which requirement was flagged, so it is the weakest of the four. A model that over-reports loses precision. |
-| Failed outputs | Cases where the analyzer produced no valid output (invalid JSON, schema violation, or a validator rejection). A failed case gets no credit: every gold item in it counts as missed. |
+| Failed outputs | Cases where the analyzer produced no valid output (invalid JSON, schema violation, or a validator rejection). A failed case gets no credit: every gold item in it counts as missed. A missing or empty `rationale` is not a failure. It plays no part in any check, so it is accepted and stored as an empty string. |
 
 ### Token and preservation metrics
 

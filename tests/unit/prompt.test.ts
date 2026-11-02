@@ -117,7 +117,7 @@ describe('structured output JSON schema', () => {
   });
 
   it('carries no constraint keywords whose support is unverified', () => {
-    const forbidden = ['$schema', 'minItems', 'maxItems', 'minLength', 'maxLength', 'pattern', 'format', 'minimum', 'maximum'];
+    const forbidden = ['$schema', 'minItems', 'maxItems', 'minLength', 'maxLength', 'pattern', 'format', 'minimum', 'maximum', 'default'];
     const found: string[] = [];
     walk(OUTPUT_JSON_SCHEMA, (node) => found.push(...forbidden.filter((key) => key in node)));
     expect(found).toEqual([]);
@@ -125,6 +125,14 @@ describe('structured output JSON schema', () => {
     // Sanity check: the raw schema does contain some of them, so the stripping is doing real work.
     const raw = JSON.stringify(z.toJSONSchema(ModelOutputSchema));
     expect(raw).toMatch(/maxLength|minItems|pattern/);
+  });
+
+  it('still asks the model for a rationale, even though the validator no longer insists on one', () => {
+    const requirements = (OUTPUT_JSON_SCHEMA.properties as Record<string, Node>).requirements!;
+    const item = requirements.items as Node;
+    expect(item.required).toContain('rationale');
+    expect(Object.keys(item.properties as Node)).toContain('rationale');
+    expect(JSON.stringify(item.properties)).not.toContain('"default"'); // the default is ours, not something to send the provider
   });
 
   it('describes a repair as two ID fields and nothing else', () => {

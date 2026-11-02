@@ -223,6 +223,45 @@ describe('live mode against a stubbed provider (not a model)', () => {
   });
 });
 
+describe('a model answer with no rationale', () => {
+  /** The reply with every rationale removed (or blanked), as a provider that skips the field would send it. */
+  function answerWithout(mode: 'omit' | 'blank'): string {
+    const output = structuredClone(refund.fixtureOutput) as { requirements: Record<string, unknown>[] };
+    for (const requirement of output.requirements) {
+      if (mode === 'omit') delete requirement.rationale;
+      else requirement.rationale = '';
+    }
+    return JSON.stringify(output);
+  }
+
+  it.each(['omit', 'blank'] as const)('is accepted when the rationale is %s, with the same findings and an empty rationale', async (mode) => {
+    const fetch = fetchSpy(() => chatResponse(answerWithout(mode)));
+    const app = makeApp({ env: LIVE_ENV, fetchImpl: fetch });
+    const preview = await previewOf(app, 'live', refund.input);
+    const response = await post(app, '/api/analyze', { mode: 'live', input: refund.input, approvedHash: preview.hash });
+    expect(response.status).toBe(200);
+
+    const body = await readJson<AnalyzeResponse>(response);
+    expect(deriveFacts(body.output)).toEqual(refund.expected);
+    expect(body.output.requirements.map((r) => r.rationale)).toEqual(refund.fixtureOutput.requirements.map(() => ''));
+    for (const status of REQUIREMENT_STATUSES) {
+      for (const requirement of body.findings[status]) expect(requirement.rationale).toBe('');
+    }
+  });
+
+  it('does not let a missing rationale excuse a real error: a bad citation is still refused', async () => {
+    const output = JSON.parse(answerWithout('omit')) as { requirements: { evidence: { passageId: string }[] }[] };
+    output.requirements.find((r) => r.evidence.length > 0)!.evidence[0]!.passageId = 'refund-99';
+    const app = makeApp({ env: LIVE_ENV, fetchImpl: fetchSpy(() => chatResponse(JSON.stringify(output))) });
+    const preview = await previewOf(app, 'live', refund.input);
+    const response = await post(app, '/api/analyze', { mode: 'live', input: refund.input, approvedHash: preview.hash });
+    expect(response.status).toBe(422);
+    const error = (await readJson<ApiErrorBody>(response)).error;
+    expect(error.code).toBe('invalid_model_output');
+    expect(error.issues?.map((issue) => issue.code)).toContain('unknown_passage_id');
+  });
+});
+
 describe('a bad model answer is shown as an error, never as findings', () => {
   const bad: Array<[string, () => string, string]> = [
     ['plain prose', () => 'Sure! Here is my analysis of the refund policy.', 'invalid_json'],

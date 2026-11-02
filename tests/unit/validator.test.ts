@@ -376,3 +376,69 @@ describe('repairs are strict passage ID selections', () => {
     expect(check(output).ok).toBe(true);
   });
 });
+
+describe('rationale is optional', () => {
+  /** The refund-window answer with the rationale key removed from every requirement, as a model might send it. */
+  const withoutRationale = () => {
+    const output = clone(refund.fixtureOutput) as unknown as { requirements: Record<string, unknown>[] };
+    for (const requirement of output.requirements) delete requirement.rationale;
+    return output;
+  };
+
+  it('accepts requirements with no rationale at all, and stores an empty one', () => {
+    const result = check(withoutRationale());
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.requirements.map((r) => r.rationale)).toEqual(refund.fixtureOutput.requirements.map(() => ''));
+    // Nothing else about the answer changes.
+    expect(result.value.requirements.map(({ rationale: _rationale, ...rest }) => rest)).toEqual(
+      refund.fixtureOutput.requirements.map(({ rationale: _rationale, ...rest }) => rest),
+    );
+  });
+
+  it('accepts an empty string, a whitespace-only string and a full-length one', () => {
+    for (const rationale of ['', '   ', 'x'.repeat(LIMITS.maxRationaleChars)]) {
+      const output = mutated((o) => {
+        o.requirements[0]!.rationale = rationale;
+      });
+      const result = check(output);
+      expect(result.ok, JSON.stringify(rationale.slice(0, 10))).toBe(true);
+      if (result.ok) expect(result.value.requirements[0]!.rationale).toBe(rationale);
+    }
+  });
+
+  it('accepts it as JSON text too, which is how a model sends it', () => {
+    const result = check(JSON.stringify(withoutRationale()));
+    expect(result.ok).toBe(true);
+  });
+
+  it('leaves a rationale that is present exactly as it was', () => {
+    const result = check(refund.fixtureOutput);
+    expect(result.ok && result.value.requirements.map((r) => r.rationale)).toEqual(refund.fixtureOutput.requirements.map((r) => r.rationale));
+  });
+
+  it('still rejects a rationale that is too long, or that is not text', () => {
+    const bad: unknown[] = ['x'.repeat(LIMITS.maxRationaleChars + 1), null, 42, true, ['a'], { text: 'a' }];
+    for (const rationale of bad) {
+      const output = mutated((o) => {
+        (o.requirements[0] as Record<string, unknown>).rationale = rationale;
+      });
+      const result = failure(output);
+      expect(result.issues.map((i) => i.code), JSON.stringify(rationale)?.slice(0, 20)).toEqual(['schema_violation']);
+      expect(result.issues[0]!.path).toBe('requirements[0].rationale');
+    }
+  });
+
+  it('does not let a missing rationale hide a real problem: wrong citations are still rejected', () => {
+    const output = withoutRationale();
+    (output.requirements[0] as { evidence: { passageId: string }[] }).evidence[0]!.passageId = 'zz-404';
+    const result = failure(output);
+    expect(result.issues.map((i) => i.code)).toContain('unknown_passage_id');
+  });
+
+  it('still rejects unknown fields next to a missing rationale', () => {
+    const output = withoutRationale();
+    (output.requirements[0] as Record<string, unknown>).confidence = 0.9;
+    expect(codes(output)).toEqual(['schema_violation']);
+  });
+});

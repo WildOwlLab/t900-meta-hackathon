@@ -58,7 +58,7 @@ export function FindingsView({ analysis, input }: Props) {
                     <p>
                       <strong>{requirement.id}</strong> {requirement.text}
                     </p>
-                    <p className="rationale">{requirement.rationale}</p>
+                    {requirement.rationale.trim() !== '' && <p className="rationale">{requirement.rationale}</p>}
                     {requirement.evidence.map((evidence, index) => (
                       <figure key={index}>
                         <blockquote>{evidence.quote}</blockquote>

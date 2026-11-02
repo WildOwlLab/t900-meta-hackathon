@@ -268,3 +268,60 @@ describe('evidence report (summary)', () => {
     expect(evidenceReportSummary(context(example))).toMatch(/## Conflicting \(0\)\n\nNone\./);
   });
 });
+
+describe('a requirement with no rationale', () => {
+  const refundExample = examples.find((e) => e.slug === 'refund-window')!;
+
+  /** The same example with the first requirement's rationale blanked, the way the validator now stores a missing one. */
+  function withBlankRationale(rationale: string): { example: Example; blanked: string; kept: string } {
+    const example = structuredClone(refundExample);
+    const [first, second] = example.fixtureOutput.requirements;
+    first!.rationale = rationale;
+    return { example, blanked: first!.id, kept: second!.id };
+  }
+
+  it('leaves the "Why:" line out of the summary instead of printing a bare one', () => {
+    for (const blank of ['', '   ', '\n']) {
+      const { example, blanked, kept } = withBlankRationale(blank);
+      const summary = evidenceReportSummary(context(example));
+      const block = (id: string) => {
+        const start = summary.indexOf(`**${id}**`);
+        const next = summary.indexOf('\n- **', start + 1);
+        return summary.slice(start, next === -1 ? undefined : next);
+      };
+      expect(block(blanked), JSON.stringify(blank)).not.toContain('Why:');
+      expect(block(kept)).toContain('Why: ');
+      expect(summary).not.toMatch(/Why:\s*$/m);
+    }
+  });
+
+  it('still lists the requirement and every quote it cites', () => {
+    const { example, blanked } = withBlankRationale('');
+    const summary = evidenceReportSummary(context(example));
+    const requirement = example.fixtureOutput.requirements.find((r) => r.id === blanked)!;
+    expect(summary).toContain(`**${requirement.id}** ${requirement.text}`);
+    for (const evidence of requirement.evidence) expect(summary).toContain(`"${evidence.quote}"`);
+  });
+
+  it('keeps a non-blank rationale exactly as written', () => {
+    const { example, blanked } = withBlankRationale('  Padded on purpose.  ');
+    expect(evidenceReportSummary(context(example))).toContain('Why:   Padded on purpose.  ');
+    expect(blanked).toBeTruthy();
+  });
+
+  it('produces a JSON report that still parses against its own schema and re-validates', () => {
+    const { example } = withBlankRationale('');
+    const json = JSON.parse(evidenceReportJson(context(example)));
+    expect(json.analysis.requirements[0].rationale).toBe('');
+    const report = EvidenceReportSchema.parse(json);
+    expect(validateModelOutput(JSON.stringify(report.analysis), report.input).ok).toBe(true);
+  });
+
+  it('accepts a report whose requirement has no rationale key at all, storing it as ""', () => {
+    const { example } = withBlankRationale('x');
+    const json = JSON.parse(evidenceReportJson(context(example)));
+    delete json.analysis.requirements[0].rationale;
+    const report = EvidenceReportSchema.parse(json);
+    expect(report.analysis.requirements[0]!.rationale).toBe('');
+  });
+});

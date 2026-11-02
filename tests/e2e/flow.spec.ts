@@ -6,6 +6,7 @@
  * so these tests prove the interface and the approval flow, not any model's quality.
  */
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import { examples, type Example } from '../../src/examples';
 import { FIXTURE_NOTICE, type RequirementStatus } from '../../src/shared/types';
@@ -214,6 +215,41 @@ test.describe('approval and repair behaviour', () => {
     await expect(error).toHaveAttribute('data-error-code', 'approval_mismatch');
     await expect(error).toContainText('approve it again');
     await expect(page.getByTestId('findings')).toHaveCount(0);
+  });
+
+  test('a requirement with no rationale shows no empty explanation, and the summary has no bare "Why:"', async ({ page }) => {
+    const blanked = refund.fixtureOutput.requirements[0]!;
+    const kept = refund.fixtureOutput.requirements[1]!;
+    await page.route('**/api/analyze', async (route) => {
+      const upstream = await route.fetch();
+      const body = (await upstream.json()) as {
+        output: { requirements: { id: string; rationale: string }[] };
+        findings: Record<string, { id: string; rationale: string }[]>;
+      };
+      const blank = (list: { id: string; rationale: string }[]) => list.forEach((r) => void (r.id === blanked.id && (r.rationale = '')));
+      blank(body.output.requirements);
+      Object.values(body.findings).forEach(blank);
+      await route.fulfill({ status: upstream.status(), contentType: 'application/json', body: JSON.stringify(body) });
+    });
+    await open(page, refund);
+    await approve(page).click();
+    await expect(page.getByTestId('findings')).toBeVisible();
+
+    const blankCard = page.locator(`[data-testid="requirement"][data-requirement-id="${blanked.id}"]`);
+    const keptCard = page.locator(`[data-testid="requirement"][data-requirement-id="${kept.id}"]`);
+    await expect(blankCard).toContainText(blanked.text);
+    await expect(blankCard.locator('.rationale')).toHaveCount(0);
+    await expect(keptCard.locator('.rationale')).toHaveText(kept.rationale);
+
+    const [file] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('button', { name: 'Report: Summary (.md)' }).click(),
+    ]);
+    const summary = readFileSync(await file.path(), 'utf8');
+    expect(summary).toContain(`**${blanked.id}** ${blanked.text}`);
+    expect(summary).not.toContain(`Why: ${blanked.rationale}`);
+    expect(summary).toContain(`Why: ${kept.rationale}`);
+    expect(summary).not.toMatch(/Why:\s*$/m);
   });
 
   test('a server error is shown as an error, not as findings', async ({ page }) => {

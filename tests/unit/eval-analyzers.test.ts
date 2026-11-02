@@ -163,6 +163,15 @@ describe('live analyzer (against a stub provider)', () => {
     expect(out.failure?.issues?.[0]?.code).toBe('invalid_json');
   });
 
+  it('does not count an answer with no rationale as a failed output', async () => {
+    const output = structuredClone(refund.example.fixtureOutput) as { requirements: Record<string, unknown>[] };
+    for (const requirement of output.requirements) delete requirement.rationale;
+    const reply = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(output) } }] })));
+    const out = await live(reply).run(refund);
+    expect(out.failure).toBeNull();
+    expect(out.facts).toEqual(refund.example.expected);
+  });
+
   it('turns provider errors into failures, with the key redacted', async () => {
     for (const respond of [
       () => new Response(`bad key ${KEY}`, { status: 401 }),

@@ -145,7 +145,13 @@ export const RequirementSchema = z
     text: z.string().min(1).max(LIMITS.maxRequirementTextChars),
     status: z.enum(REQUIREMENT_STATUSES),
     evidence: z.array(EvidenceSchema).max(LIMITS.maxEvidencePerRequirement),
-    rationale: z.string().min(1).max(LIMITS.maxRationaleChars),
+    /**
+     * The model's own explanation, shown to the user. It plays no part in any check: citations and quotes are
+     * validated whether or not there is a rationale. So a missing or empty one is accepted and stored as "",
+     * rather than failing an otherwise correct answer. Over-long or non-text values are still rejected.
+     * The schema sent to the model still lists it as required, so it is still asked for one.
+     */
+    rationale: z.string().max(LIMITS.maxRationaleChars).default(''),
   })
   .strict();
 export type Requirement = z.infer<typeof RequirementSchema>;
