@@ -1,11 +1,11 @@
 # Evaluation
 
-**Status: the table below has no model results.** It is generated offline from two analyzers
-that are not models: a sanity-check oracle and a naive keyword baseline. The analyzer that
+**Status: the generated tables have no model results.** They come from two analyzers that
+are not models: a sanity-check oracle and a naive keyword baseline. The analyzer that
 measures a real model (`live`) needs a key, so neither `npm test` nor the generator runs it.
-The project owner has run it once, against the Meta Model API with `muse-wonder-1.0`, and the
-figures they reported are in the README. Nothing here reproduces them, and they come from the
-13-case development set described below.
+The project owner has run it, against the Meta Model API with `muse-wonder-1.0`, and the
+figures they reported are in "Live run" near the end of this file and in the README. They are
+typed in by hand, and they come from the 13-case development set described below.
 
 ## What the automated tests show
 
@@ -137,6 +137,46 @@ It covers the deterministic analyzers only. Do not edit it by hand.
 - **Keyword baseline (not a model)** (not a model): A naive keyword matcher: a passage is relevant if it shares two words with the task, and two relevant passages conflict if they share a topic but carry different numbers. It never reports an unanswerable question. A floor to compare a model against, with constants fixed in advance and not tuned.
 - **Live model**: not run. Run it with `npm run eval -- --analyzer live` and your own credentials (see "Running it" above).
 <!-- eval:end -->
+
+## Live run (reported by the project owner)
+
+The generated results above have no live row. Their line "Live model: not run" means this generator does
+not run the live analyzer, because that needs a key and sends text to a provider. It does not mean nobody has.
+
+The project owner ran `npm run eval -- --analyzer live --yes` against the Meta Model API with the model
+`muse-wonder-1.0` and reported the figures below. They are typed in by hand, the raw output is not committed,
+and nothing here can reproduce them without a key. A test keeps this table identical to the one in the README
+and checks that its totals agree with the dataset above: the gold counts, the number of cases, the token
+total and the initial pack. That catches a typo or a changed dataset. It does not prove the run happened.
+
+<!-- live-run:begin -->
+
+| Measure | Live model: `muse-wonder-1.0` |
+| --- | --- |
+| Missing evidence: recall | 92.3% (12/13) |
+| Missing evidence: precision | 100.0% (12/12) |
+| Contradictions: recall | 100.0% (5/5) |
+| Contradictions: precision | 100.0% (5/5) |
+| Conflict false alarms | 0/9 cases |
+| Unanswerable: recall | 100.0% (8/8) |
+| Unanswerable: precision | 100.0% (8/8) |
+| Failed outputs | 1/13 |
+| Required evidence in initial pack | 47.4% |
+| Required evidence in revised pack | 98.1% |
+| Revised pack vs all sources | -27.3% (991/1363 tokens) |
+
+<!-- live-run:end -->
+
+How to read it:
+
+- The rows use the same names and formats as the generated tables above, so read each one against the
+  **Keyword baseline** row for the same measure. A negative figure in the last row means a smaller pack than
+  sending every source.
+- **Failed outputs** counts cases with no valid output. A failed case gets no credit, so its gold items count
+  as missed. Which case failed and why was not recorded here.
+- Not recorded for this run: revised pack vs initial pack, and dead weight in the revised pack.
+- Live models are not deterministic. These figures are one report, and nothing here measures how much they
+  move between runs. The limitations below apply in full: the cases are a development set the authors wrote.
 
 ### How to read this
 

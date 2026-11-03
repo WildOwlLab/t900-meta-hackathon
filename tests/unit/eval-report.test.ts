@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { keywordAnalyzer, oracleAnalyzer } from '../../src/eval/analyzers';
 import { evalCases } from '../../src/eval/cases';
+import { tokenMetrics } from '../../src/eval/metrics';
 import {
   DOCS_BEGIN,
   DOCS_END,
@@ -154,9 +155,124 @@ describe('docs/EVALUATION.md', () => {
     expect(block).not.toMatch(/\d{4}-\d{2}-\d{2}T/);
   });
 
-  it('does not claim a model result anywhere outside the generated block', () => {
-    const outside = doc.slice(0, doc.indexOf(DOCS_BEGIN)) + doc.slice(doc.indexOf(DOCS_END));
-    expect(outside).toContain('**Status: the table below has no model results.**');
-    expect(outside).not.toMatch(/\d+(\.\d+)?% \(\d+\/\d+\)/); // no rate with counts outside the generated block
+  it('does not claim a model result anywhere outside the generated block and the one marked live-run block', () => {
+    const cut = (text: string, begin: string, end: string) => text.slice(0, text.indexOf(begin)) + text.slice(text.indexOf(end) + end.length);
+    const outside = cut(cut(doc, DOCS_BEGIN, DOCS_END), LIVE_BEGIN, LIVE_END);
+    expect(outside).toContain('**Status: the generated tables have no model results.**');
+    expect(outside).not.toMatch(/\d+(\.\d+)?% \(\d+\/\d+\)/); // no rate with counts anywhere else
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The live run is reported by the project owner and typed in by hand. Nothing here can reproduce it, so these
+// tests only check what CAN be checked: the table is the same everywhere it appears, it is labelled for what it
+// is, and every number in it is consistent with the benchmark it claims to come from.
+// ---------------------------------------------------------------------------
+
+const LIVE_BEGIN = '<!-- live-run:begin -->';
+const LIVE_END = '<!-- live-run:end -->';
+
+describe('the reported live run', () => {
+  const read = (file: string) => readFileSync(join(process.cwd(), file), 'utf8').replace(/\r\n/g, '\n');
+  const doc = read('docs/EVALUATION.md');
+  const readme = read('README.md');
+
+  const blockOf = (text: string): string => {
+    expect(text.split(LIVE_BEGIN), 'one live-run start marker').toHaveLength(2);
+    expect(text.split(LIVE_END), 'one live-run end marker').toHaveLength(2);
+    return text.slice(text.indexOf(LIVE_BEGIN) + LIVE_BEGIN.length, text.indexOf(LIVE_END)).trim();
+  };
+  const rowsOf = (block: string): Map<string, string> =>
+    new Map(
+      block
+        .split('\n')
+        .filter((line) => line.startsWith('|'))
+        .slice(2) // header and separator
+        .map((line) => {
+          const [label, value] = line.split('|').slice(1, -1).map((cell) => cell.trim());
+          return [label!, value!] as [string, string];
+        }),
+    );
+
+  it('is the same table in the README and in the evaluation doc', () => {
+    expect(blockOf(readme)).toBe(blockOf(doc));
+  });
+
+  it('is labelled as reported by the project owner, names the model, and says what it cannot show', () => {
+    const start = doc.indexOf('## Live run (reported by the project owner)');
+    expect(start).toBeGreaterThan(-1);
+    const section = doc.slice(start, doc.indexOf('\n## ', start + 1));
+    expect(section).toContain('`muse-wonder-1.0`');
+    expect(section).toMatch(/typed in by hand/);
+    expect(section).toMatch(/does not prove the run happened/);
+    expect(section).toMatch(/development set/);
+  });
+
+  it('agrees with the dataset it claims to come from: gold totals, case counts, token total and initial pack', () => {
+    const info = datasetInfo(evalCases);
+    const perCase = evalCases.map((c) => tokenMetrics(c, null)); // no repairs: the initial pack as it stands
+    const sum = (pick: (t: (typeof perCase)[number]) => number) => perCase.reduce((n, t) => n + pick(t), 0);
+    const casesWithoutConflict = evalCases.filter((c) => c.example.expected.conflicts.length === 0).length;
+    const percent = (part: number, whole: number) => `${((part / whole) * 100).toFixed(1)}%`;
+
+    const table = rowsOf(blockOf(doc));
+    expect([...table.keys()]).toEqual([
+      'Missing evidence: recall',
+      'Missing evidence: precision',
+      'Contradictions: recall',
+      'Contradictions: precision',
+      'Conflict false alarms',
+      'Unanswerable: recall',
+      'Unanswerable: precision',
+      'Failed outputs',
+      'Required evidence in initial pack',
+      'Required evidence in revised pack',
+      'Revised pack vs all sources',
+    ]);
+    const cell = (label: string, pattern: RegExp): RegExpExecArray => {
+      const match = pattern.exec(table.get(label)!);
+      expect(match, `${label}: "${table.get(label)}" is not in the expected format`).not.toBeNull();
+      return match!;
+    };
+
+    // "92.3% (12/13)": the percentage must be what the fraction gives.
+    const rate = (label: string) => {
+      const [, shown, found, total] = cell(label, /^(\d+\.\d)% \((\d+)\/(\d+)\)$/);
+      expect(`${shown}%`, `${label}: percentage and fraction disagree`).toBe(percent(Number(found), Number(total)));
+      expect(Number(found)).toBeLessThanOrEqual(Number(total));
+      return { found: Number(found), total: Number(total) };
+    };
+
+    for (const [name, gold] of [
+      ['Missing evidence', info.gold.missingPassages],
+      ['Contradictions', info.gold.conflicts],
+      ['Unanswerable', info.gold.unanswerable],
+    ] as const) {
+      const recall = rate(`${name}: recall`);
+      const precision = rate(`${name}: precision`);
+      expect(recall.total, `${name}: recall is out of the gold total`).toBe(gold);
+      expect(precision.found, `${name}: precision and recall count the same correct items`).toBe(recall.found);
+    }
+
+    const alarms = cell('Conflict false alarms', /^(\d+)\/(\d+) cases$/);
+    expect(Number(alarms[2])).toBe(casesWithoutConflict);
+    expect(Number(alarms[1])).toBeLessThanOrEqual(casesWithoutConflict);
+    const failed = cell('Failed outputs', /^(\d+)\/(\d+)$/);
+    expect(Number(failed[2])).toBe(info.cases);
+    expect(Number(failed[1])).toBeLessThanOrEqual(info.cases);
+
+    // The initial pack is the same whatever the model does, so this one has to match exactly.
+    const initialShare = sum((t) => t.preservedInitial) / perCase.length;
+    expect(table.get('Required evidence in initial pack')).toBe(`${(initialShare * 100).toFixed(1)}%`);
+    const revisedShare = Number(cell('Required evidence in revised pack', /^(\d+\.\d)%$/)[1]);
+    expect(revisedShare).toBeGreaterThanOrEqual(Number((initialShare * 100).toFixed(1))); // repairs only add
+    expect(revisedShare).toBeLessThanOrEqual(100);
+
+    const tokens = cell('Revised pack vs all sources', /^-(\d+\.\d)% \((\d+)\/(\d+) tokens\)$/);
+    const allTokens = sum((t) => t.allSources);
+    expect(Number(tokens[3]), 'the all-sources token total').toBe(allTokens);
+    expect(Number(tokens[2])).toBeGreaterThanOrEqual(sum((t) => t.initialPack)); // repairs only add
+    expect(Number(tokens[2])).toBeLessThanOrEqual(allTokens);
+    expect(`${tokens[1]}%`).toBe(`${((1 - Number(tokens[2]) / allTokens) * 100).toFixed(1)}%`);
   });
 });

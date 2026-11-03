@@ -1,13 +1,13 @@
 # Provider notes
 
-**Status: partly verified by one live run.** The facts below were supplied by the project
-owner in the build session on 2026-10-31. On 2026-11-02 the project owner reported a
-successful live run against the Meta Model API with the model `muse-wonder-1.0` (see "What
-the live run confirmed"). We still have not read Meta's official documentation: when we
-tried, the sandbox network policy blocked the documentation hosts. A working call shows
-what the host accepted, not what it documents. Treat an item as confirmed only if the
-checklist at the bottom ticks it, and treat the rest as unverified until this file links to
-the official pages.
+**Status: partly verified by a live run.** The facts below were supplied by the project
+owner in the build session on 2026-10-31. On 2026-11-02 and 2026-11-03 the project owner
+reported a successful live run against the Meta Model API with the model `muse-wonder-1.0`:
+one smoke call ([SMOKE.md](SMOKE.md)) and the 13-case benchmark (see "What the live run
+confirmed"). We still have not read Meta's official documentation: when we tried, the
+sandbox network policy blocked the documentation hosts. A working call shows what the host
+accepted, not what it documents. Treat an item as confirmed only if it is marked verified or
+ticked, and treat the rest as unverified until this file links to the official pages.
 
 ## Event (as supplied)
 
@@ -59,24 +59,37 @@ Things to know before relying on them:
   `unanswerable`.
 - Repairs are strict passage ID selections. The repair engine generates no text.
 
-## What the live run confirmed (reported by the project owner, 2026-11-02)
+## What the live run confirmed (reported by the project owner, 2026-11-02 and 2026-11-03)
 
-The project owner ran the live path with their own key. This repository holds their report.
-The raw run output is not in it.
+The project owner ran the live path with their own key. This repository holds their report. The raw run
+output is not in it, and [SMOKE.md](SMOKE.md) is a transcription of the smoke call, not the script's own
+output.
 
-- **Host and model:** the Meta Model API, with `META_MODEL` set to `muse-wonder-1.0`. The
-  integration target above was Muse Spark. Fireworks and Baseten were not used.
-- **What ran:** the live analyzer on the 13-case benchmark (`npm run eval -- --analyzer live
-  --yes`). The figures that were reported are in the README.
-- **What that confirms:** for this model, the host accepted the request the code builds (URL,
-  bearer key, `model`, `messages` and `response_format`) and answered in the shape the code
-  reads (`choices[0].message.content`).
+| Setting | Value | Status |
+| --- | --- | --- |
+| `META_API_URL` | `https://api.meta.ai/v1` | Verified by the live run. The code adds `/chat/completions`, giving `https://api.meta.ai/v1/chat/completions` |
+| `META_MODEL` | `muse-wonder-1.0` | Verified by the live run |
+| `META_RESPONSE_FORMAT` | `json_schema` | Verified by the live run. `json_object` was not tried |
+| `META_API_KEY` | not recorded here | A key never goes in this repository |
+
+"Verified" here means a live run worked with that value. It does not mean the value is documented: the
+official documentation has still not been read.
+
+- **Host and model:** the Meta Model API, with `muse-wonder-1.0`. The integration target above was Muse
+  Spark. Fireworks and Baseten were not used.
+- **What ran:** one smoke call (`npm run smoke:meta -- --yes`: HTTP 200, 19658 ms, 4037 tokens of which
+  2728 were reasoning tokens, validator PASS 1/1), recorded in [SMOKE.md](SMOKE.md), and the live analyzer on
+  the 13-case benchmark (`npm run eval -- --analyzer live --yes`), reported in the README and in
+  [EVALUATION.md](EVALUATION.md).
+- **What that confirms:** for this model, the host accepted the request the code builds (URL, bearer key,
+  `model`, `messages` and a `json_schema` `response_format`) and answered in the shape the code reads
+  (`choices[0].message.content`). The smoke answer passed the validator.
 - **What it does not confirm:**
   - Anything in Meta's documentation. A working call is not the same as a documented one.
-  - Which `META_RESPONSE_FORMAT` was used. It was not recorded, and the other value was not
-    tried.
+  - Whether the host enforces `json_schema` or only accepts it. The validator checks every answer either way.
   - That `muse-wonder-1.0` is an eligible model (see above).
   - Rate limits, quota and data terms.
+  - The negative control (`--negative-control`), which was not reported.
   - The live Downstream Comparison, which has only been run against the stub.
   - How the system does on data the authors did not write. The 13 cases are a development set.
 
@@ -87,16 +100,16 @@ table, when a row turns out to be wrong, then update the row.
 
 | Item | What the code does | Status |
 | --- | --- | --- |
-| Endpoint | Takes `META_API_URL` as a base URL and adds `/chat/completions` unless it is already there. Nothing is hard-coded. | Worked in the live run on the Meta Model API. Not checked against documentation, and not tried on Fireworks or Baseten |
+| Endpoint | Takes `META_API_URL` as a base URL and adds `/chat/completions` unless it is already there. Nothing is hard-coded. | Verified by the live run on the Meta Model API (`https://api.meta.ai/v1`). Not checked against documentation, and not tried on Fireworks or Baseten |
 | Model ID | Takes it from `META_MODEL`. Nothing is hard-coded. | `muse-wonder-1.0` was accepted in the live run. The supplied Fireworks and Baseten IDs were not tried |
 | Auth | `Authorization: Bearer <META_API_KEY>`, the usual convention for OpenAI-compatible APIs | Worked in the live run. Not checked against documentation |
 | Request body | `model`, `messages` (one system, one user), and `response_format` | Accepted in the live run. Not checked against documentation |
-| Response format | `json_schema` (default): `response_format: { type: "json_schema", json_schema: { name, schema } }`. `json_object`: `response_format: { type: "json_object" }`, with the same schema written into the system prompt. Chosen with `META_RESPONSE_FORMAT`. | The live run worked, but which `META_RESPONSE_FORMAT` it used was not recorded, and the other value was not tried here |
+| Response format | `json_schema` (default): `response_format: { type: "json_schema", json_schema: { name, schema } }`. `json_object`: `response_format: { type: "json_object" }`, with the same schema written into the system prompt. Chosen with `META_RESPONSE_FORMAT`. | `json_schema` verified by the live run. `json_object` was not tried here |
 | `strict` | Not sent. The owner's note says "strict json_schema". The validator already rejects any output that breaks the schema, whether or not the provider enforces it. | Try `strict: true` in a smoke run only if the host documents it |
 | Not sent | `temperature`, max tokens, `top_p`, `seed`, `strict`, `stream` | Add each only after the docs confirm it, and only with a reason |
 | Response | `choices[0].message.content` is a string holding the JSON. Top-level `model`, `id` and `usage` are printed if present. | `choices[0].message.content` worked in the live run. Whether `model`, `id` and `usage` come back was not recorded |
 | Downstream comparison | A plain chat completion: `model` and `messages` (one system, one user) with no `response_format`. Two are sent per comparison, in parallel, with the same system prompt and different passages. `choices[0].message.content` is read as free text and shown as plain text. | Not part of the live run. Only exercised against the stub |
-| Schema keywords | Only `type`, `properties`, `required`, `items`, `enum`, `additionalProperties`. Constraint keywords such as `minLength` and `pattern` are stripped, and the validator enforces them. | Provider support unverified |
+| Schema keywords | Only `type`, `properties`, `required`, `items`, `enum`, `additionalProperties`. Constraint keywords such as `minLength` and `pattern` are stripped, and the validator enforces them. | Accepted by the host in the live run, sent with `json_schema`. Whether it enforces them was not tested |
 | Output format | Bare JSON. A Markdown code fence is rejected as invalid. | Revisit if the provider fences output |
 | Context limits | `LIMITS` in `src/shared/types.ts` are provisional caps. | Needs the model's real context window |
 
@@ -110,8 +123,8 @@ ticked. Unticked means not recorded here, which is not the same as not done.
       the live run on the Meta Model API, not from documentation.)
 - [ ] Confirm the model ID for Muse Spark that this account can call, and that it supports
       `json_schema` or `json_object` (set `META_RESPONSE_FORMAT` to match). Partly done:
-      `muse-wonder-1.0` is callable from this account, but it is not named Muse Spark and
-      the format it supports was not recorded.
+      `muse-wonder-1.0` is callable from this account and accepts `json_schema`, but it is
+      not named Muse Spark.
 - [ ] Confirm the chosen host's own data terms, not only Meta's.
 - [ ] Confirm which `response_format` schema keywords are supported.
 - [ ] Confirm rate limits, quota and any hackathon credits.
@@ -125,7 +138,9 @@ ticked. Unticked means not recorded here, which is not the same as not done.
       the key into chat or commit it.
 - [ ] Run `npm run smoke:meta` without `--yes` and read the request body.
 - [ ] Run `npm run smoke:meta -- --yes --negative-control`, then
-      `npm run smoke:meta -- --yes`, and record the real results in `docs/SMOKE.md`.
+      `npm run smoke:meta -- --yes`, and record the real results in `docs/SMOKE.md`. Partly
+      done: the `--yes` call is recorded in `docs/SMOKE.md`. The negative control was not
+      reported.
 
 ## Privacy
 

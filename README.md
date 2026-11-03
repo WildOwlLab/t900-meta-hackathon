@@ -101,12 +101,14 @@ Fill in `.env` (it is git-ignored and is read only by the server):
 | `META_API_KEY` | Your provider key. Never commit it or paste it into chat. |
 | `META_API_URL` | The provider's OpenAI-compatible **base URL**. `/chat/completions` is added for you. |
 | `META_MODEL` | The model ID from the provider's documentation. |
-| `META_RESPONSE_FORMAT` | Optional. `json_schema` (default) or `json_object`. Try `json_object` if the host rejects `json_schema`. |
+| `META_RESPONSE_FORMAT` | Optional. `json_schema` (default) or `json_object`. Try `json_object` if the host rejects `json_schema`. The live run used `json_schema`. |
 
-Values supplied by the project owner (**not yet checked against the providers' documentation**):
+Three hosts. **None of them has been checked against the provider's documentation.** The first row is what
+the live run used. The other two were supplied by the project owner and have not been tried:
 
 | Host | `META_API_URL` | `META_MODEL` |
 | --- | --- | --- |
+| Meta Model API (used in the live run) | `https://api.meta.ai/v1` | `muse-wonder-1.0` |
 | Fireworks | `https://api.fireworks.ai/inference/v1` | `accounts/fireworks/models/muse-spark-open` |
 | Baseten (alternative) | `https://bridge.baseten.co/v1` | `meta-models/muse-spark-open-1028` |
 
@@ -121,11 +123,11 @@ npm run eval -- --analyzer live --yes            # all 13 benchmark cases agains
 ```
 
 > **Live status:** verified and tested against the **Meta Model API** with the model `muse-wonder-1.0`.
-> The project owner ran the live path, including the 13-case benchmark below, with their own key. A run
-> needs a key, so it is not part of `npm test`, and you need your own key to repeat it. The Fireworks and
-> Baseten values in the table above were not part of that run and are still unchecked. The live Downstream
-> Comparison has only been run against the stub. [docs/PROVIDER.md](docs/PROVIDER.md) lists what the run
-> confirmed and what it did not.
+> The project owner ran the live path with their own key: one real round trip, recorded in
+> [docs/SMOKE.md](docs/SMOKE.md), and the 13-case benchmark below. A run needs a key, so it is not part of
+> `npm test`, and you need your own key to repeat it. The Fireworks and Baseten values in the table above
+> were not part of that run and are still unchecked. The live Downstream Comparison has only been run against
+> the stub. [docs/PROVIDER.md](docs/PROVIDER.md) lists what the run confirmed and what it did not.
 
 ## What to look at
 
@@ -158,23 +160,40 @@ methods and the limitations are in [docs/EVALUATION.md](docs/EVALUATION.md).
 
 **Live run: `muse-wonder-1.0` on the Meta Model API.** The project owner ran `npm run eval -- --analyzer
 live --yes` locally and reported these figures. `npm test` does not reproduce them, because a live run
-needs a key.
+needs a key. [docs/EVALUATION.md](docs/EVALUATION.md) has the same table next to the keyword baseline it
+should be read against.
 
-| Measure | Result |
+<!-- live-run:begin -->
+
+| Measure | Live model: `muse-wonder-1.0` |
 | --- | --- |
-| Missing evidence: recall | 92.3% (12 of 13) |
-| Contradictions: recall | 100% (5 of 5) |
-| Unanswerable: precision | 100% |
-| Conflict false alarms | 0 (of 9 cases with no real conflict) |
+| Missing evidence: recall | 92.3% (12/13) |
+| Missing evidence: precision | 100.0% (12/12) |
+| Contradictions: recall | 100.0% (5/5) |
+| Contradictions: precision | 100.0% (5/5) |
+| Conflict false alarms | 0/9 cases |
+| Unanswerable: recall | 100.0% (8/8) |
+| Unanswerable: precision | 100.0% (8/8) |
+| Failed outputs | 1/13 |
+| Required evidence in initial pack | 47.4% |
+| Required evidence in revised pack | 98.1% |
+| Revised pack vs all sources | -27.3% (991/1363 tokens) |
 
-Read them with these limits in mind:
+<!-- live-run:end -->
+
+Required evidence is the passages a correct answer cites. The revised pack is the initial pack plus every
+repair the model proposed, and a negative figure in the last row means a smaller pack than sending every
+source. Tokens are estimates (characters divided by 4).
+
+Read the figures with these limits in mind:
 
 - The 13 cases are a development set written by the same authors as the prompt and validator, not a
   held-out test. These figures say little about how the system does on new data.
-- The counts are small, so a single case moves a figure a lot.
-- Only these four measures were recorded. Precision for missing evidence and for contradictions, recall
-  for unanswerable and the number of failed outputs are not recorded here yet, and a recall figure means
-  little without its precision.
+- The counts are small, so a single case moves a figure a lot, and a live model can answer differently
+  from one run to the next.
+- One of the 13 cases produced no valid output. Which case it was and why was not recorded here.
+- Repairs only add passages, so the revised pack is always larger than the initial pack. It is smaller
+  than sending every source, which is what the last row measures.
 
 ## Browser support
 
@@ -217,7 +236,7 @@ src/eval/     benchmark cases, scoring and analyzers
 src/examples/ the three built-in examples, and their hand-written downstream answers
 scripts/      dev, eval and smoke-meta
 tests/        unit, api, e2e (Playwright) and hygiene tests
-docs/         PROVIDER.md (provider notes) and EVALUATION.md (method and results)
+docs/         PROVIDER.md (provider notes), EVALUATION.md (method and results) and SMOKE.md (the recorded live call)
 ```
 
 ## Licence

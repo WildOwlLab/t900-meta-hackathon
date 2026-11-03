@@ -216,12 +216,12 @@ describe('the README stays true', () => {
     expect([...named].filter((name) => !allowed.has(name))).toEqual([]);
   });
 
-  it('reports percentages only for the live run, and only as recall or precision', () => {
+  it('reports percentages only for the live run, and only against a measure the benchmark defines', () => {
     // A percentage is a performance claim. The only ones allowed are the reported live-run figures, and each has to
-    // sit on a line that names the measure, so "99% accurate" or "twice as fast" cannot slip in under that exception.
+    // sit on a line that names its measure, so "99% accurate" or "twice as fast" cannot slip in under that exception.
     const withPercent = readme.split('\n').filter((line) => /\d+(\.\d+)?\s?%/.test(line));
     expect(withPercent.length).toBeGreaterThan(0);
-    expect(withPercent.filter((line) => !/\b(recall|precision)\b/i.test(line))).toEqual([]);
+    expect(withPercent.filter((line) => !/\b(recall|precision)\b|required evidence|vs all sources/i.test(line))).toEqual([]);
   });
 
   it('says what the live run covered and what it did not, names the limits of its data, and says Firefox and Safari were not tested', () => {
